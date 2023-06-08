@@ -1,0 +1,5 @@
+metatrader5
+pandas
+pandas-ta
+mplfinance
+requests
