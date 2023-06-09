@@ -19,12 +19,13 @@ UB_TIMER_MODE = 2
 TICK_TIMER = 1
 
 [setting]
+symbols = XAUUSD,XAGUSD
 ;# 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
-timeframe = 3m
+timeframe = 15m,5m
+
 signal_index = -1
 magic_number = 999222
 
-symbols = XAUUSD
 lot = 0.01
 deviation = 20
 
@@ -41,11 +42,15 @@ martingale_max = 16
 ; martingale_max = 8
 
 auto_tpsl = off
-;sl = 99
-;tp = 199
+;buy_sl = 99
+;buy_tp = 199
+;sell_sl = 99
+;sell_tp = 199
 ;สามารถกำหนดค่าเป็นเปอร์เซ็นต์ได้
-sl = 0.30%
-tp = 0.75%
+buy_sl = 0.30%
+buy_tp = 0.75%
+sell_sl = 0.30%
+sell_tp = 0.75%
 
 ; trailing_profit = on
 trailing_stop = on

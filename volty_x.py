@@ -43,7 +43,7 @@ mt5.initialize() #Open terminal MT5
 notify = LineNotify(config.LINE_NOTIFY_TOKEN)
 
 symbol = config.symbols[0]
-tf = config.timeframe
+tf = config.timeframe[0]
 lot = config.lot
 deviation = config.deviation
 
@@ -71,13 +71,13 @@ TIMEFRAME_SECONDS = {
     '1d': 60*60*24,
 }
 UB_TIMER_SECONDS = [
-    TIMEFRAME_SECONDS[config.timeframe],
+    TIMEFRAME_SECONDS[config.timeframe[0]],
     10,
     15,
     20,
     30,
     60,
-    int(TIMEFRAME_SECONDS[config.timeframe]/2)
+    int(TIMEFRAME_SECONDS[config.timeframe[0]]/2)
 ]
 
 SHOW_COLUMNS = ['symbol', 'identifier', 'type', 'volume', 'price_open', 'sl', 'tp', 'price_current', 'profit', 'comment', 'magic']
@@ -86,6 +86,8 @@ RENAME_COLUMNS = ['Symbol', 'Ticket', 'Type', 'Volume', 'Price', 'S/L', 'T/P', '
 ORDER_TYPE = ["buy","sell","buy limit","sell limit","buy stop","sell stop","buy stop limit","sell stop limit","close"]
 
 symbols_list = []
+symbols_tf = {}
+symbols_next_tf_ticker = {}
 all_stat = {}
 
 all_signals = {}
@@ -351,6 +353,25 @@ def positions_check(positions, old_position_ids):
             if close_by != '':
                 notify.Send_Text(f"{symbol}\nTrade {close_by}\nPrice = {price_current}\nProfit = {profit:.2f}")
 
+def positions_report(positions):
+    if len(positions) > 0:
+        positions.sort_values(by=['profit'], ignore_index=True, ascending=False, inplace=True)
+        positions.index = positions.index + 1
+        display_positions = positions[SHOW_COLUMNS]
+        display_positions.columns = RENAME_COLUMNS
+        print(display_positions)
+        print(f"Total Profit   : {sum(display_positions['Profit']):,.2f}")
+    else:
+        print("No Positions")
+    summary_columns = ["Symbol", "TF", "Win", "Loss", "Gale", "Profit"]
+    summary_rows = []
+    for symbol in all_stat.keys():
+        summary_rows.append([symbol,symbols_tf[symbol],all_stat[symbol]["win"],all_stat[symbol]["loss"],all_stat[symbol]["last_loss"],'{:0.2f}'.format(all_stat[symbol]["summary_profit"])])
+    summary_df = pd.DataFrame(summary_rows,columns=summary_columns)
+    summary_df.sort_values(by=['Profit'], ignore_index=True, ascending=False, inplace=True)
+    summary_df.index = summary_df.index + 1
+    print(summary_df)
+    
 def positions_getall(symbols_list):
     res = mt5.positions_get()
     if(res is not None and res != ()):
@@ -412,37 +433,51 @@ def cal_tpsl(symbol, direction:stupid_share.Direction, price_target):
             'price': round(price_target, symbol_digits),
             'price_txt': 'Price: @{}'.format(round(price_target, symbol_digits)),
         }
-        direction_multiplier = 1 if direction == stupid_share.Direction.LONG else -1
-        if config.tp > 0:
-            if config.is_tp_percent:
-                tp = round(price_target + (price_target * config.tp * direction_multiplier), symbol_digits)
-                tp_mode = '{:.2f}%'.format(config.tp * 100)
+        if direction == stupid_share.Direction.LONG:
+            direction_multiplier = 1
+            config_tp = config.buy_tp
+            config_is_tp_percent = config.is_buy_tp_percent
+            config_sl = config.buy_sl
+            config_is_sl_percent = config.is_buy_sl_percent
+        elif direction == stupid_share.Direction.SHORT:
+            direction_multiplier = -1
+            config_tp = config.sell_tp
+            config_is_tp_percent = config.is_sell_tp_percent
+            config_sl = config.sell_sl
+            config_is_sl_percent = config.is_sell_sl_percent
+        if config_tp > 0:
+            if config_is_tp_percent:
+                tp = round(price_target + (price_target * config_tp * direction_multiplier), symbol_digits)
+                tp_mode = '{:.2f}%'.format(config_tp * 100)
             else:
-                tp = round(price_target + (config.tp * symbol_point * direction_multiplier), symbol_digits)
+                tp = round(price_target + (config_tp * symbol_point * direction_multiplier), symbol_digits)
                 tp_mode = ''
             fibo_data['tp'] = tp
             fibo_data['tp_txt'] = 'TP: {} @{}'.format(tp_mode, round(tp, symbol_digits))
-        if config.sl > 0:
-            if config.is_sl_percent:
-                sl = round(price_target - (price_target * config.sl * direction_multiplier), symbol_digits)
-                sl_mode = '{:.2f}%'.format(config.sl * 100)
+        if config_sl > 0:
+            if config_is_sl_percent:
+                sl = round(price_target - (price_target * config_sl * direction_multiplier), symbol_digits)
+                sl_mode = '{:.2f}%'.format(config_sl * 100)
             else:
-                sl = round(price_target - (config.sl * symbol_point * direction_multiplier), symbol_digits)
+                sl = round(price_target - (config_sl * symbol_point * direction_multiplier), symbol_digits)
                 sl_mode = ''
             fibo_data['sl'] = sl
             fibo_data['sl_txt'] = 'SL: {} @{}'.format(sl_mode, round(sl, symbol_digits))
     return fibo_data
 
 async def update_trade(symbol, next_ticker):
+    tf = symbols_tf[symbol]
     await update_ohlcv(symbol, next_ticker)
     await trade(symbol)
 
 async def update_ohlcv(symbol, next_ticker):
+    tf = symbols_tf[symbol]
     await stupid_volty_mt5.fetch_ohlcv(trade_mt5, symbol, tf, limit=0, timestamp=next_ticker)
     logger.debug(f'{symbol}::\n{stupid_volty_mt5.all_candles[symbol].tail(3)}')
 
 async def trade(symbol):
     try:
+        tf = symbols_tf[symbol]
         symbol_tick = mt5.symbol_info_tick(symbol)
         price_buy = symbol_tick.ask
         price_sell = symbol_tick.bid
@@ -471,6 +506,7 @@ async def trade(symbol):
                             all_stat[symbol]["loss"] += 1
                             all_stat[symbol]["last_loss"] += 1
                             # all_stat[symbol]["martingale_profit"] += position['profit']
+                        notify.Send_Text(f'{symbol}\nWin = {all_stat[symbol]["win"]}\nLoss = {all_stat[symbol]["loss"]}\nPNL = {all_stat[symbol]["summary_profit"]:0.2f}')
                     elif position["type"] == ORDER_TYPE[0]:
                         all_signals[symbol] = 1
                         has_long_position = True
@@ -501,6 +537,7 @@ async def trade(symbol):
                             all_stat[symbol]["loss"] += 1
                             all_stat[symbol]["last_loss"] += 1
                             # all_stat[symbol]["martingale_profit"] += position['profit']
+                        notify.Send_Text(f'{symbol}\nWin = {all_stat[symbol]["win"]}\nLoss = {all_stat[symbol]["loss"]}\nPNL = {all_stat[symbol]["summary_profit"]:0.2f}')
                     elif position["type"] == ORDER_TYPE[1]:
                         all_signals[symbol] = -1
                         has_short_position = True
@@ -532,6 +569,7 @@ async def trade(symbol):
         pass
 
 async def init_symbol_ohlcv(symbol):
+    tf = symbols_tf[symbol]
     logger.info(f"init_symbol_ohlcv - {symbol}")
     # symbol_info = mt5.symbol_info(symbol)
     # symbol_digits = symbol_info.digits
@@ -541,7 +579,7 @@ async def init_symbol_ohlcv(symbol):
     await stupid_volty_mt5.chart(symbol, tf, showMACDRSI=True)
 
 async def main():
-    for symbol in config.symbols:
+    for idx, symbol in enumerate(config.symbols):
         symbol_info = mt5.symbol_info(symbol)
         if symbol_info is None:
             print(symbol, "not found, can not call order_check()")
@@ -558,6 +596,9 @@ async def main():
                 # quit()
                 continue
         symbols_list.append(symbol)
+        symbols_tf[symbol] = config.timeframe[idx]
+
+    logger.debug(f"symbols_tf = {symbols_tf}")
 
     if len(symbols_list) == 0:
         print("Empty symbols list")
@@ -600,9 +641,13 @@ async def main():
             step = int(position["comment"].split("-")[-1])
             all_stat[position['symbol']]["last_loss"] = step
 
-    time_wait = TIMEFRAME_SECONDS[tf]
+    time_wait = TIMEFRAME_SECONDS['1m']
     next_tf_ticker = time.time()
     next_tf_ticker -= next_tf_ticker % time_wait
+
+    for symbol in symbols_list:
+        symbols_next_tf_ticker[symbol] = next_tf_ticker + TIMEFRAME_SECONDS[symbols_tf[symbol]]
+
     next_tf_ticker += time_wait
 
     time_update = UB_TIMER_SECONDS[config.UB_TIMER_MODE]
@@ -623,7 +668,7 @@ async def main():
         if seconds >= next_update:  # ครบรอบ ปรับปรุงข้อมูล
             next_update += time_update
 
-            print(CLS_SCREEN+f"{bot_fullname}\nBot start process {local_time}\nTime Frame = {tf}, Martingale = {'on' if config.is_martingale else 'off'}")
+            print(CLS_SCREEN+f"{bot_fullname}\nBot start process {local_time}\nMartingale = {'on' if config.is_martingale else 'off'}")
             
             # prepare old position ids
             old_position_ids = []
@@ -643,36 +688,30 @@ async def main():
             # check all close positions
             positions_check(all_positions, old_position_ids)
 
-            if len(all_positions) > 0:
-                all_positions.sort_values(by=['profit'], ignore_index=True, ascending=False, inplace=True)
-                all_positions.index = all_positions.index + 1
-                display_positions = all_positions[SHOW_COLUMNS]
-                display_positions.columns = RENAME_COLUMNS
-                print(display_positions)
-                print(f"Total Profit   : {sum(display_positions['Profit']):,.2f}")
-            else:
-                print("No Positions")
-            summary_columns = ["Symbol", "Win", "Loss", "Gale", "Profit"]
-            summary_rows = []
-            for symbol in all_stat.keys():
-                summary_rows.append([symbol,all_stat[symbol]["win"],all_stat[symbol]["loss"],all_stat[symbol]["last_loss"],'{:0.2f}'.format(all_stat[symbol]["summary_profit"])])
-            summary_df = pd.DataFrame(summary_rows,columns=summary_columns)
-            summary_df.sort_values(by=['Profit'], ignore_index=True, ascending=False, inplace=True)
-            summary_df.index = summary_df.index + 1
-            print(summary_df)
+            positions_report(all_positions)
 
-        if seconds >= next_tf_ticker + config.TIME_SHIFT:  # ครบรอบ
-            # trade all symbol
-            call_trades = [update_ohlcv(symbol, next_tf_ticker) for symbol in symbols_list]
-            next_tf_ticker += time_wait
+        call_updates = []
+        for symbol in symbols_list:
+            # ตรวจสอบว่าถึงเวลา update ohlcv หรือยัง
+            if seconds >= symbols_next_tf_ticker[symbol] + config.TIME_SHIFT:
+                # update ohlcv
+                call_updates.append(update_ohlcv(symbol, symbols_next_tf_ticker[symbol]))
+                symbols_next_tf_ticker[symbol] = next_tf_ticker + TIMEFRAME_SECONDS[symbols_tf[symbol]]
+        if len(call_updates) > 0:
+            await asyncio.gather(*call_updates)
 
-            await asyncio.gather(*call_trades)
+        # if seconds >= next_tf_ticker + config.TIME_SHIFT:  # ครบรอบ
+        #     # trade all symbol
+        #     call_trades = [update_ohlcv(symbol, symbols_next_tf_ticker[symbol]) for symbol in symbols_list]
+        #     next_tf_ticker += time_wait
+
+        #     await asyncio.gather(*call_trades)
             
         if seconds >= next_tick:  # ครบรอบ buy/sell tick
             next_tick += time_tick
 
-            # call_trades = [trade(symbol) for symbol in symbols_list]
-            # await asyncio.gather(*call_trades)
+            call_trades = [trade(symbol) for symbol in symbols_list]
+            await asyncio.gather(*call_trades)
 
         await asyncio.sleep(1)
 
@@ -697,7 +736,7 @@ if __name__ == "__main__":
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-        logger.info(f"===== Start :: Volty :: {tf} =====")
+        logger.info(f"===== Start :: Volty =====")
 
         # display data on the MetaTrader 5 package
         print("MetaTrader5 package author: ", mt5.__author__)
@@ -706,12 +745,12 @@ if __name__ == "__main__":
         trade_mt5 = mt5.login(login=int(user_id),server=server_user,password=password_user) # Login
         if trade_mt5:
             #print(mt5.account_info())#information from server
-            account_info_dict = mt5.account_info()._asdict()#information()to{}
+            account_info_dict = mt5.account_info()._asdict() # information() to {}
             #print(account_info_dict)
-            account_info_list=list(account_info_dict.items())#Change {} to list
+            account_info_list = list(account_info_dict.items()) # Change {} to list
             #print(account_info_list)
-            # df=pd.DataFrame(account_info_list,columns=['property','value'])#Convert list to data list table
-            # print(df)
+            #df=pd.DataFrame(account_info_list,columns=['property','value'])#Convert list to data list table
+            #print(df)
         else:
             print("No Connect")
             quit()

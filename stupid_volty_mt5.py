@@ -169,7 +169,7 @@ def set_indicator(symbol, bars, config=indicator_config):
 
     except Exception as ex:
         print(type(ex).__name__, symbol, str(ex))
-        logger.error(ex)
+        logger.exception('set_indicator')
 
     return df
 
@@ -205,6 +205,7 @@ async def fetch_ohlcv(exchange, symbol, timeframe, limit=CANDLE_LIMIT, timestamp
             all_candles[symbol] = set_indicator(symbol, ohlcv_bars, config=config)
     except Exception as ex:
         print(type(ex).__name__, symbol, str(ex))
+        logger.exception('fetch_ohlcv')
         if limit == 0 and symbol in all_candles.keys():
             print('----->', timestamp, last_candle_time, timestamp-last_candle_time, round(1.5+(timestamp-last_candle_time)/timeframe_secs))
         # if '"code":-1130' in str(ex):
@@ -374,21 +375,21 @@ async def chart(symbol, timeframe, config=indicator_config, showMACDRSI=False, f
             if 'tp' in fiboData.keys() and fiboData['tp'] > 0:
                 fibo_tp = fiboData['tp']
                 fibo_tp_txt = fiboData['tp_txt']
-                ax1.text(CANDLE_PLOT,fibo_tp - difference * 0.06,fibo_tp_txt,fontsize=8,color='g',horizontalalignment='right')
+                ax1.text(CANDLE_PLOT/2,fibo_tp - difference * 0.06,fibo_tp_txt,fontsize=8,color='g',horizontalalignment='center')
             else:
                 none_tpsl_txt.append('No TP')
 
             if 'sl' in fiboData.keys() and fiboData['sl'] > 0:
                 fibo_sl = fiboData['sl']
                 fibo_sl_txt = fiboData['sl_txt']
-                ax1.text(CANDLE_PLOT,fibo_sl - difference * 0.06,fibo_sl_txt,fontsize=8,color='r',horizontalalignment='right')
+                ax1.text(CANDLE_PLOT/2,fibo_sl - difference * 0.06,fibo_sl_txt,fontsize=8,color='r',horizontalalignment='center')
             else:
                 none_tpsl_txt.append('No SL')
                 
             if 'price' in fiboData.keys():
                 fibo_price = fiboData['price']
                 fibo_price_txt = fiboData['price_txt'] + (' [' + ','.join(none_tpsl_txt) + ']' if len(none_tpsl_txt) > 0 else '')
-                ax1.text(CANDLE_PLOT,fibo_price - difference * 0.06,fibo_price_txt,fontsize=8,color='b',horizontalalignment='right')
+                ax1.text(CANDLE_PLOT/2,fibo_price - difference * 0.06,fibo_price_txt,fontsize=8,color='b',horizontalalignment='center')
 
         fig.savefig(filename)
 
@@ -398,5 +399,6 @@ async def chart(symbol, timeframe, config=indicator_config, showMACDRSI=False, f
 
     except Exception as ex:
         print(type(ex).__name__, symbol, str(ex))
+        logger.exception('chart')
 
     return filename

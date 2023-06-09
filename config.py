@@ -101,7 +101,8 @@ TICK_TIMER = get_int('app_config', 'TICK_TIMER', 5)
 #------------------------------------------------------------
 # setting
 #------------------------------------------------------------
-timeframe = get_str('setting', 'timeframe', '5m')
+# timeframe = get_str('setting', 'timeframe', '5m')
+timeframe = get_list('setting', 'timeframe', ['5m'])
 signal_index = get_int('setting', 'signal_index', -2)
 magic_number = get_int('setting', 'magic_number', '999111')
 
@@ -122,21 +123,37 @@ martingale_max = get_int('setting', 'martingale_max', 8)
 
 is_auto_tpsl = get_str('setting', 'auto_tpsl', 'on') == 'on'
 
-sl_str = get_str('setting', 'sl', '').strip()
-if sl_str.endswith('%'):
-    is_sl_percent = True
-    sl = p2f(sl_str)
+buy_sl_str = get_str('setting', 'buy_sl', '').strip()
+if buy_sl_str.endswith('%'):
+    is_buy_sl_percent = True
+    buy_sl = p2f(buy_sl_str)
 else:
-    is_sl_percent = False
-    sl = get_int('setting', 'sl', 500)
+    is_buy_sl_percent = False
+    buy_sl = get_int('setting', 'buy_sl', 500)
     
-tp_str = get_str('setting', 'tp', '').strip()
-if tp_str.endswith('%'):
-    is_tp_percent = True
-    tp = p2f(tp_str)
+buy_tp_str = get_str('setting', 'buy_tp', '').strip()
+if buy_tp_str.endswith('%'):
+    is_buy_tp_percent = True
+    buy_tp = p2f(buy_tp_str)
 else:
-    is_tp_percent = False
-    tp = get_int('setting', 'tp', 1500)
+    is_buy_tp_percent = False
+    buy_tp = get_int('setting', 'buy_tp', 1500)
+
+sell_sl_str = get_str('setting', 'sell_sl', '').strip()
+if sell_sl_str.endswith('%'):
+    is_sell_sl_percent = True
+    sell_sl = p2f(sell_sl_str)
+else:
+    is_sell_sl_percent = False
+    sell_sl = get_int('setting', 'sell_sl', 500)
+    
+sell_tp_str = get_str('setting', 'sell_tp', '').strip()
+if sell_tp_str.endswith('%'):
+    is_sell_tp_percent = True
+    sell_tp = p2f(sell_tp_str)
+else:
+    is_sell_tp_percent = False
+    sell_tp = get_int('setting', 'sell_tp', 1500)
 
 # is_trailing_profit = get_str('setting', 'trailing_profit', 'on') == 'on'
 is_trailing_stop = get_str('setting', 'trailing_stop', 'on') == 'on'
