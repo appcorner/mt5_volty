@@ -671,8 +671,8 @@ async def main():
         if seconds >= next_tick:  # ครบรอบ buy/sell tick
             next_tick += time_tick
 
-            call_trades = [trade(symbol) for symbol in symbols_list]
-            await asyncio.gather(*call_trades)
+            # call_trades = [trade(symbol) for symbol in symbols_list]
+            # await asyncio.gather(*call_trades)
 
         await asyncio.sleep(1)
 
