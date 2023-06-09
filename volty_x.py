@@ -696,7 +696,8 @@ async def main():
             if seconds >= symbols_next_tf_ticker[symbol] + config.TIME_SHIFT:
                 # update ohlcv
                 call_updates.append(update_ohlcv(symbol, symbols_next_tf_ticker[symbol]))
-                symbols_next_tf_ticker[symbol] = next_tf_ticker + TIMEFRAME_SECONDS[symbols_tf[symbol]]
+                symbols_next_tf_ticker[symbol] += TIMEFRAME_SECONDS[symbols_tf[symbol]]
+                print(f"[{symbol}] Update OHLCV : {local_time}")
         if len(call_updates) > 0:
             await asyncio.gather(*call_updates)
 
