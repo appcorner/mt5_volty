@@ -479,6 +479,11 @@ async def trade(symbol):
     try:
         tf = symbols_tf[symbol]
         symbol_tick = mt5.symbol_info_tick(symbol)
+        if symbol_tick is None:
+            msg = f"{symbol} trade :: symbol_tick is None"
+            logger.debug(msg)
+            print(msg)
+            return
         price_buy = symbol_tick.ask
         price_sell = symbol_tick.bid
         mid_price = (price_buy + price_sell) / 2
@@ -553,7 +558,7 @@ async def trade(symbol):
 
         if (is_long and not has_long_position) or (is_short and not has_short_position):
             print(f"\r[{symbol}] Buy Signal : {buy_signal:5.2f}, Sell_Signal : {sell_signal:5.2f}")
-            print(f"\r[{symbol}] Ask Price  : {price_buy:5.2f} , Bid Price   : {price_sell:5.2f}")
+            print(f"\r[{symbol}] Ask Price  : {price_buy:5.2f}, Bid Price   : {price_sell:5.2f}")
             logger.info(f'{symbol} :: is_long={is_long}, is_short={is_short}, buy_signal={buy_signal}, sell_signal={sell_signal}')
 
             filename = ''
@@ -595,6 +600,8 @@ async def main():
                 # mt5.shutdown()
                 # quit()
                 continue
+
+        show_bid_ask(symbol)
         symbols_list.append(symbol)
         symbols_tf[symbol] = config.timeframe[idx]
 
@@ -648,7 +655,7 @@ async def main():
     for symbol in symbols_list:
         symbols_next_tf_ticker[symbol] = next_tf_ticker + TIMEFRAME_SECONDS[symbols_tf[symbol]]
 
-    next_tf_ticker += time_wait
+    # next_tf_ticker += time_wait
 
     time_update = UB_TIMER_SECONDS[config.UB_TIMER_MODE]
     next_update =  time.time()
@@ -747,7 +754,7 @@ if __name__ == "__main__":
         if trade_mt5:
             #print(mt5.account_info())#information from server
             account_info_dict = mt5.account_info()._asdict() # information() to {}
-            #print(account_info_dict)
+            print(account_info_dict)
             account_info_list = list(account_info_dict.items()) # Change {} to list
             #print(account_info_list)
             #df=pd.DataFrame(account_info_list,columns=['property','value'])#Convert list to data list table
