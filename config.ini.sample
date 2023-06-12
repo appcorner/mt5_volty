@@ -28,6 +28,8 @@ magic_number = 999222
 
 lot = 0.01
 deviation = 20
+;# ใช้ค่ากลางระหว่าง bid ask ในการตรวจสัญญาน
+;use_midprice = on
 
 atr_length = 4
 atr_multiple = 0.75
@@ -37,20 +39,21 @@ macd_cross = on
 martingale_mode = on
 martingale_factor = 1.0
 martingale_max = 16
-;ถ้า martingale_factor > 1.0 จะเป็นการเพิ่ม lot ตามเทคนิค martingale (ทวีคูณ)
-; martingale_factor = 2.0
-; martingale_max = 8
+;# ถ้า martingale_factor > 1.0 จะเป็นการเพิ่ม lot ตามเทคนิค martingale (ทวีคูณ)
+;martingale_factor = 2.0
+;martingale_max = 8
 
 auto_tpsl = off
-;buy_sl = 99
-;buy_tp = 199
-;sell_sl = 99
-;sell_tp = 199
-;สามารถกำหนดค่าเป็นเปอร์เซ็นต์ได้
-buy_sl = 0.30%
-buy_tp = 0.75%
-sell_sl = 0.30%
-sell_tp = 0.75%
+;# กำหนดค่าตาม symbols
+;buy_sl = 99,99
+;buy_tp = 199,199
+;sell_sl = 99,99
+;sell_tp = 199,199
+;# สามารถกำหนดค่าเป็นเปอร์เซ็นต์ได้
+buy_sl = 0.1%,0.2%
+buy_tp = 1.0%,1.0%
+sell_sl = 0.1%,0.2%
+sell_tp = 1.0%,1.0%
 
 ; trailing_profit = on
 trailing_stop = on

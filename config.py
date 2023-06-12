@@ -110,6 +110,7 @@ magic_number = get_int('setting', 'magic_number', '999111')
 symbols = get_list('setting', 'symbols', ['XAUUSD'])
 lot = get_float('setting', 'lot', 0.01)
 deviation = get_int('setting', 'deviation', 20)
+is_use_midprice = get_str('setting', 'use_midprice', 'off') == 'on'
 
 atr_length = get_int('setting', 'atr_length', 100)
 atr_multiple = get_float('setting', 'atr_multiple', 0.75)
@@ -123,37 +124,10 @@ martingale_max = get_int('setting', 'martingale_max', 8)
 
 is_auto_tpsl = get_str('setting', 'auto_tpsl', 'on') == 'on'
 
-buy_sl_str = get_str('setting', 'buy_sl', '').strip()
-if buy_sl_str.endswith('%'):
-    is_buy_sl_percent = True
-    buy_sl = p2f(buy_sl_str)
-else:
-    is_buy_sl_percent = False
-    buy_sl = get_int('setting', 'buy_sl', 500)
-    
-buy_tp_str = get_str('setting', 'buy_tp', '').strip()
-if buy_tp_str.endswith('%'):
-    is_buy_tp_percent = True
-    buy_tp = p2f(buy_tp_str)
-else:
-    is_buy_tp_percent = False
-    buy_tp = get_int('setting', 'buy_tp', 1500)
-
-sell_sl_str = get_str('setting', 'sell_sl', '').strip()
-if sell_sl_str.endswith('%'):
-    is_sell_sl_percent = True
-    sell_sl = p2f(sell_sl_str)
-else:
-    is_sell_sl_percent = False
-    sell_sl = get_int('setting', 'sell_sl', 500)
-    
-sell_tp_str = get_str('setting', 'sell_tp', '').strip()
-if sell_tp_str.endswith('%'):
-    is_sell_tp_percent = True
-    sell_tp = p2f(sell_tp_str)
-else:
-    is_sell_tp_percent = False
-    sell_tp = get_int('setting', 'sell_tp', 1500)
+buy_tp_str = get_list('setting', 'buy_tp', ['1500'])
+sell_tp_str = get_list('setting', 'sell_tp', ['1500'])
+buy_sl_str = get_list('setting', 'buy_sl', ['500'])
+sell_sl_str = get_list('setting', 'sell_sl', ['500'])
 
 # is_trailing_profit = get_str('setting', 'trailing_profit', 'on') == 'on'
 is_trailing_stop = get_str('setting', 'trailing_stop', 'on') == 'on'

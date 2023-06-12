@@ -19,6 +19,18 @@ import stupid_volty_mt5
 import logging
 from logging.handlers import RotatingFileHandler
 
+import json
+class TPLS(object):
+    def __init__(self):
+        self.is_buy_tp_percent=True
+        self.buy_tp=1.0
+        self.is_buy_sl_percent=True
+        self.buy_sl=1.0
+        self.is_sell_tp_percent=True
+        self.sell_tp=1.0
+        self.is_sell_sl_percent=True
+        self.sell_sl=1.0
+
 bot_name = 'Volty'
 magic_code = 'VT'
 bot_vesion = '1.0.0'
@@ -89,6 +101,8 @@ symbols_list = []
 symbols_tf = {}
 symbols_next_tf_ticker = {}
 all_stat = {}
+
+symbols_tpsl = {}
 
 all_signals = {}
 
@@ -435,16 +449,16 @@ def cal_tpsl(symbol, direction:stupid_share.Direction, price_target):
         }
         if direction == stupid_share.Direction.LONG:
             direction_multiplier = 1
-            config_tp = config.buy_tp
-            config_is_tp_percent = config.is_buy_tp_percent
-            config_sl = config.buy_sl
-            config_is_sl_percent = config.is_buy_sl_percent
+            config_tp = symbols_tpsl[symbol].buy_tp
+            config_is_tp_percent = symbols_tpsl[symbol].is_buy_tp_percent
+            config_sl = symbols_tpsl[symbol].buy_sl
+            config_is_sl_percent = symbols_tpsl[symbol].is_buy_sl_percent
         elif direction == stupid_share.Direction.SHORT:
             direction_multiplier = -1
-            config_tp = config.sell_tp
-            config_is_tp_percent = config.is_sell_tp_percent
-            config_sl = config.sell_sl
-            config_is_sl_percent = config.is_sell_sl_percent
+            config_tp = symbols_tpsl[symbol].sell_tp
+            config_is_tp_percent = symbols_tpsl[symbol].is_sell_tp_percent
+            config_sl = symbols_tpsl[symbol].sell_sl
+            config_is_sl_percent = symbols_tpsl[symbol].is_sell_sl_percent
         if config_tp > 0:
             if config_is_tp_percent:
                 tp = round(price_target + (price_target * config_tp * direction_multiplier), symbol_digits)
@@ -489,8 +503,12 @@ async def trade(symbol):
         mid_price = (price_buy + price_sell) / 2
         last_signal = all_signals[symbol] if symbol in all_signals.keys() else 0
         is_long, is_short, buy_signal, sell_signal = stupid_volty_mt5.get_signal(symbol, config.signal_index)
-        is_long = mid_price > buy_signal and last_signal != 1
-        is_short = mid_price < sell_signal and last_signal != -1
+        if config.is_use_midprice:
+            is_long = mid_price > buy_signal and last_signal != 1
+            is_short = mid_price < sell_signal and last_signal != -1
+        else:
+            is_long = price_buy > buy_signal and last_signal != 1
+            is_short = price_sell < sell_signal and last_signal != -1
         fibo_data = None
         msg = ""
         if is_long:
@@ -605,8 +623,40 @@ async def main():
         symbols_list.append(symbol)
         symbols_tf[symbol] = config.timeframe[idx]
 
-    logger.debug(f"symbols_tf = {symbols_tf}")
+        tpsl_dict = TPLS()
+        if config.buy_tp_str[idx].endswith('%'):
+            tpsl_dict.is_buy_tp_percent = True
+            tpsl_dict.buy_tp = config.p2f(config.buy_tp_str[idx])
+        else:
+            tpsl_dict.is_buy_tp_percent = False
+            tpsl_dict.buy_tp = float(config.buy_tp_str[idx])
 
+        if config.buy_sl_str[idx].endswith('%'):
+            tpsl_dict.is_buy_sl_percent = True
+            tpsl_dict.buy_sl = config.p2f(config.buy_sl_str[idx])
+        else:
+            tpsl_dict.is_buy_sl_percent = False
+            tpsl_dict.buy_sl = float(config.buy_sl_str[idx])
+
+        if config.sell_tp_str[idx].endswith('%'):
+            tpsl_dict.is_sell_tp_percent = True
+            tpsl_dict.sell_tp = config.p2f(config.sell_tp_str[idx])
+        else:
+            tpsl_dict.is_sell_tp_percent = False
+            tpsl_dict.sell_tp = float(config.sell_tp_str[idx])
+
+        if config.sell_sl_str[idx].endswith('%'):
+            tpsl_dict.is_sell_sl_percent = True
+            tpsl_dict.sell_sl = config.p2f(config.sell_sl_str[idx])
+        else:
+            tpsl_dict.is_sell_sl_percent = False
+            tpsl_dict.sell_sl = float(config.sell_sl_str[idx])
+
+        symbols_tpsl[symbol] = tpsl_dict
+        logger.debug(f"[{symbol}] symbols_tpsl = {json.dumps(tpsl_dict.__dict__)}")
+
+    logger.debug(f"symbols_tf = {symbols_tf}")
+    
     if len(symbols_list) == 0:
         print("Empty symbols list")
         mt5.shutdown()
