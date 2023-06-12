@@ -5,3 +5,5 @@
 /pyproject.toml
 /__pycache__
 /tvDatafeed/__pycache__
+/dist
+/build
