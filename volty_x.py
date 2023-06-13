@@ -33,7 +33,7 @@ class TPLS(object):
 
 bot_name = 'Volty'
 magic_code = 'VT'
-bot_vesion = '1.0.0'
+bot_vesion = '1.1.0'
 
 bot_fullname = f'MT5 {bot_name} version {bot_vesion}'
 
@@ -97,10 +97,12 @@ RENAME_COLUMNS = ['Symbol', 'Ticket', 'Type', 'Volume', 'Price', 'S/L', 'T/P', '
 
 ORDER_TYPE = ["buy","sell","buy limit","sell limit","buy stop","sell stop","buy stop limit","sell stop limit","close"]
 
+all_stat = {}
+
 symbols_list = []
 symbols_tf = {}
 symbols_next_tf_ticker = {}
-all_stat = {}
+symbols_trade = {}
 
 symbols_tpsl = {}
 
@@ -486,11 +488,16 @@ async def update_trade(symbol, next_ticker):
 
 async def update_ohlcv(symbol, next_ticker):
     tf = symbols_tf[symbol]
+    symbols_trade[symbol] = False
     await stupid_volty_mt5.fetch_ohlcv(trade_mt5, symbol, tf, limit=0, timestamp=next_ticker)
+    symbols_trade[symbol] = True
     logger.debug(f'{symbol}::\n{stupid_volty_mt5.all_candles[symbol].tail(3)}')
 
 async def trade(symbol):
     try:
+        if symbols_trade[symbol] == False:
+            return
+        
         tf = symbols_tf[symbol]
         symbol_tick = mt5.symbol_info_tick(symbol)
         if symbol_tick is None:
@@ -498,11 +505,25 @@ async def trade(symbol):
             logger.debug(msg)
             print(msg)
             return
+        
         price_buy = symbol_tick.ask
         price_sell = symbol_tick.bid
         mid_price = (price_buy + price_sell) / 2
+
         last_signal = all_signals[symbol] if symbol in all_signals.keys() else 0
         is_long, is_short, buy_signal, sell_signal = stupid_volty_mt5.get_signal(symbol, config.signal_index)
+
+        spread_factor = 2
+        price_spread = (price_buy - price_sell) * spread_factor
+        signal_spread = buy_signal - sell_signal
+        # ถ้า ค่าสเปรด คูณ factor มากกว่าความกว้างสัญญาณ ให้ข้าม
+        if price_spread > signal_spread:
+            print(f"{symbol} trade skip :: price_spread x {spread_factor}:{price_spread} > signal_spread:{signal_spread}")
+            symbols_trade[symbol] = False
+            return
+        
+        is_long = False
+        is_short = False
         if config.is_use_midprice:
             is_long = mid_price > buy_signal and last_signal != 1
             is_short = mid_price < sell_signal and last_signal != -1
@@ -535,11 +556,13 @@ async def trade(symbol):
                         has_long_position = True
             if not has_long_position:
                 # calculate fibo
-                all_signals[symbol] = 1
                 price_buy = mt5.symbol_info_tick(symbol).ask
                 cal_lot = cal_martingal_lot(symbol)
                 fibo_data = cal_tpsl(symbol, stupid_share.Direction.LONG, price_buy)
                 position_id = trade_buy(symbol, price_buy, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[symbol]["last_loss"])
+                if position_id > 0:
+                    all_signals[symbol] = 1
+                symbols_trade[symbol] = False
                 msg = f"Signal Long {symbol}\nticker: {position_id}"
                 print(msg)
         elif is_short:
@@ -566,18 +589,20 @@ async def trade(symbol):
                         has_short_position = True
             if not has_short_position:
                 # calculate fibo
-                all_signals[symbol] = -1
                 price_sell = mt5.symbol_info_tick(symbol).bid
                 cal_lot = cal_martingal_lot(symbol)
                 fibo_data = cal_tpsl(symbol, stupid_share.Direction.SHORT, price_sell)
                 position_id = trade_sell(symbol, price_sell, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[symbol]["last_loss"])
+                if position_id > 0:
+                    all_signals[symbol] = -1
+                symbols_trade[symbol] = False
                 msg = f"Signal Short {symbol}\nticker: {position_id}"
                 print(msg)
 
         if (is_long and not has_long_position) or (is_short and not has_short_position):
             print(f"\r[{symbol}] Buy Signal : {buy_signal:5.2f}, Sell_Signal : {sell_signal:5.2f}")
             print(f"\r[{symbol}] Ask Price  : {price_buy:5.2f}, Bid Price   : {price_sell:5.2f}")
-            logger.info(f'{symbol} :: is_long={is_long}, is_short={is_short}, buy_signal={buy_signal}, sell_signal={sell_signal}')
+            logger.info(f'{symbol} :: is_long={is_long}, is_short={is_short}, buy_signal={buy_signal}, sell_signal={sell_signal}, price_buy={price_buy}, price_sell={price_sell}')
 
             filename = ''
             if fibo_data:
@@ -622,6 +647,7 @@ async def main():
         show_bid_ask(symbol)
         symbols_list.append(symbol)
         symbols_tf[symbol] = config.timeframe[idx]
+        symbols_trade[symbol] = False
 
         tpsl_dict = TPLS()
         if config.buy_tp_str[idx].endswith('%'):
@@ -656,6 +682,7 @@ async def main():
         logger.debug(f"[{symbol}] symbols_tpsl = {json.dumps(tpsl_dict.__dict__)}")
 
     logger.debug(f"symbols_tf = {symbols_tf}")
+    logger.debug(f"symbols_trade = {symbols_trade}")
     
     if len(symbols_list) == 0:
         print("Empty symbols list")
@@ -794,7 +821,7 @@ if __name__ == "__main__":
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-        logger.info(f"===== Start :: Volty =====")
+        logger.info(f"===== Start :: {bot_name} =====")
 
         # display data on the MetaTrader 5 package
         print("MetaTrader5 package author: ", mt5.__author__)
