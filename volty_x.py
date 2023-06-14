@@ -686,7 +686,7 @@ async def main():
     if len(symbols_list) == 0:
         print("Empty symbols list")
         mt5.shutdown()
-        quit()
+        exit()
 
     # orders = mt5.orders_total()
     # if orders > 0:
@@ -847,8 +847,8 @@ if __name__ == "__main__":
             #df=pd.DataFrame(account_info_list,columns=['property','value'])#Convert list to data list table
             #print(df)
         else:
-            print("No Connect")
-            quit()
+            print("No Connect: Login Failed")
+            exit()
         
         os.system("color") # enables ansi escape characters in terminal
         print(HIDE_CURSOR, end="")
