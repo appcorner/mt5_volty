@@ -50,8 +50,6 @@ CCYAN  = '\33[36m'
 CEND = '\033[0m'
 CBOLD = '\33[1m'
 
-mt5.initialize() #Open terminal MT5
-
 notify = LineNotify(config.LINE_NOTIFY_TOKEN)
 
 symbol = config.symbols[0]
@@ -64,6 +62,7 @@ magic_number = config.magic_number
 user_id = config.LOGIN
 server_user = config.SERVER
 password_user = config.PASSWORD
+mt5_path = config.PATH
 
 TZ_ADJUST = 7
 MT_ADJUST = 4
@@ -823,11 +822,22 @@ if __name__ == "__main__":
 
         logger.info(f"===== Start :: {bot_name} =====")
 
+        if os.path.exists(mt5_path):
+            logger.debug(f"MT5 folder: {mt5_path}")
+            mt5.initialize(path=mt5_path)
+        else:
+            mt5.initialize() #Open terminal MT5
+
+        terminal_info_dict = mt5.terminal_info()._asdict()
+        mt5_df=pd.DataFrame(list(terminal_info_dict.items()),columns=['property','value'])
+        logger.debug("terminal_info() as dataframe:")
+        logger.debug(f"\n{mt5_df}")
+
         # display data on the MetaTrader 5 package
         print("MetaTrader5 package author: ", mt5.__author__)
         print("MetaTrader5 package version: ", mt5.__version__)
 
-        trade_mt5 = mt5.login(login=int(user_id),server=server_user,password=password_user) # Login
+        trade_mt5 = mt5.login(login=int(user_id), server=server_user, password=password_user) # Login
         if trade_mt5:
             #print(mt5.account_info())#information from server
             account_info_dict = mt5.account_info()._asdict() # information() to {}
