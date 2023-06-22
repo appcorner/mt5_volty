@@ -3,6 +3,7 @@ login =
 password = 
 server = FBS-Real
 ; path = D:\mt5_terminal\FBS_02\terminal64.exe
+; symbol_suffix = -ECN
 
 [line]
 notify_token = 

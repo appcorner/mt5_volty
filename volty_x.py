@@ -107,7 +107,14 @@ symbols_tpsl = {}
 
 all_signals = {}
 
-def trade_buy(symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number, step=0):
+def broker_symbol(symbol):
+    if config.symbol_suffix and config.symbol_suffix in symbol:
+        return symbol
+    else:
+        return symbol + config.symbol_suffix
+
+def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number, step=0):
+    symbol = broker_symbol(base_symbol)
     point = mt5.symbol_info(symbol).point
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
@@ -144,7 +151,8 @@ def trade_buy(symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number,
         position_id_buy = result.order
     return position_id_buy
 
-def close_buy(symbol, position_id, lot, price_open):
+def close_buy(base_symbol, position_id, lot, price_open):
+    symbol = broker_symbol(base_symbol)
     price = mt5.symbol_info_tick(symbol).bid
     profit = 0.0
     if price_open > 0.0:
@@ -176,7 +184,8 @@ def close_buy(symbol, position_id, lot, price_open):
         position_id_close_buy = result.order
     return position_id_close_buy
 
-def trade_sell(symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number, step=0):
+def trade_sell(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number, step=0):
+    symbol = broker_symbol(base_symbol)
     point = mt5.symbol_info(symbol).point 
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
@@ -213,7 +222,8 @@ def trade_sell(symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number
         position_id_sell = result.order
     return position_id_sell  
 
-def close_sell(symbol, position_id, lot, price_open):
+def close_sell(base_symbol, position_id, lot, price_open):
+    symbol = broker_symbol(base_symbol)
     price = mt5.symbol_info_tick(symbol).ask
     profit = 0.0
     if price_open > 0.0:
@@ -246,7 +256,8 @@ def close_sell(symbol, position_id, lot, price_open):
     return position_id_close_sell
 
 # Function to modify an open position
-def modify_position(symbol, position_id, new_sl, new_tp, magic_number=magic_number):
+def modify_position(base_symbol, position_id, new_sl, new_tp, magic_number=magic_number):
+    symbol = broker_symbol(base_symbol)
     # Create the request
     request = {
         "action": mt5.TRADE_ACTION_SLTP,
@@ -323,7 +334,8 @@ def update_trailing_stop(position):
                 # Send order to modify_position
                 modify_position(symbol, position_id, round(new_stop_loss, symbol_digits), round(position_tp, symbol_digits))
 
-def show_bid_ask(symbol):
+def show_bid_ask(base_symbol):
+    symbol = broker_symbol(base_symbol)
     symbol_tick = mt5.symbol_info_tick(symbol)
     ask_price = symbol_tick.ask
     bid_price = symbol_tick.bid
@@ -402,7 +414,8 @@ def positions_getall(symbols_list):
         return df
     
     return pd.DataFrame()
-def positions_get(symbol):
+def positions_get(base_symbol):
+    symbol = broker_symbol(base_symbol)
     res = mt5.positions_get(symbol=symbol)
     if(res is not None and res != ()):
         all_columns = res[0]._asdict().keys()
@@ -432,14 +445,15 @@ def cal_martingal_lot(symbol):
                 cal_lot = round(config.lot * (config.martingale_factor ** config.martingale_max), 2)
     return cal_lot
 
-def cal_tpsl(symbol, direction:stupid_share.Direction, price_target):
+def cal_tpsl(base_symbol, direction:stupid_share.Direction, price_target):
+    symbol = broker_symbol(base_symbol)
     symbol_info = mt5.symbol_info(symbol)
     symbol_digits = symbol_info.digits
     symbol_point = symbol_info.point
     tp = 0.0
     sl = 0.0
     if config.is_auto_tpsl:
-        fibo_data = stupid_share.cal_minmax_fibo(symbol, stupid_volty_mt5.all_candles[symbol], direction, entryPrice=price_target, digits=symbol_digits)
+        fibo_data = stupid_share.cal_minmax_fibo(base_symbol, stupid_volty_mt5.all_candles[base_symbol], direction, entryPrice=price_target, digits=symbol_digits)
         tp = fibo_data['tp']
         sl = fibo_data['sl']
     else:
@@ -450,16 +464,16 @@ def cal_tpsl(symbol, direction:stupid_share.Direction, price_target):
         }
         if direction == stupid_share.Direction.LONG:
             direction_multiplier = 1
-            config_tp = symbols_tpsl[symbol].buy_tp
-            config_is_tp_percent = symbols_tpsl[symbol].is_buy_tp_percent
-            config_sl = symbols_tpsl[symbol].buy_sl
-            config_is_sl_percent = symbols_tpsl[symbol].is_buy_sl_percent
+            config_tp = symbols_tpsl[base_symbol].buy_tp
+            config_is_tp_percent = symbols_tpsl[base_symbol].is_buy_tp_percent
+            config_sl = symbols_tpsl[base_symbol].buy_sl
+            config_is_sl_percent = symbols_tpsl[base_symbol].is_buy_sl_percent
         elif direction == stupid_share.Direction.SHORT:
             direction_multiplier = -1
-            config_tp = symbols_tpsl[symbol].sell_tp
-            config_is_tp_percent = symbols_tpsl[symbol].is_sell_tp_percent
-            config_sl = symbols_tpsl[symbol].sell_sl
-            config_is_sl_percent = symbols_tpsl[symbol].is_sell_sl_percent
+            config_tp = symbols_tpsl[base_symbol].sell_tp
+            config_is_tp_percent = symbols_tpsl[base_symbol].is_sell_tp_percent
+            config_sl = symbols_tpsl[base_symbol].sell_sl
+            config_is_sl_percent = symbols_tpsl[base_symbol].is_sell_sl_percent
         if config_tp > 0:
             if config_is_tp_percent:
                 tp = round(price_target + (price_target * config_tp * direction_multiplier), symbol_digits)
@@ -480,27 +494,27 @@ def cal_tpsl(symbol, direction:stupid_share.Direction, price_target):
             fibo_data['sl_txt'] = 'SL: {} @{}'.format(sl_mode, round(sl, symbol_digits))
     return fibo_data
 
-async def update_trade(symbol, next_ticker):
-    tf = symbols_tf[symbol]
-    await update_ohlcv(symbol, next_ticker)
-    await trade(symbol)
+async def update_trade(base_symbol, next_ticker):
+    tf = symbols_tf[base_symbol]
+    await update_ohlcv(base_symbol, next_ticker)
+    await trade(base_symbol)
 
-async def update_ohlcv(symbol, next_ticker):
-    tf = symbols_tf[symbol]
-    symbols_trade[symbol] = False
-    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, symbol, tf, limit=0, timestamp=next_ticker)
-    symbols_trade[symbol] = True
-    logger.debug(f'{symbol}::\n{stupid_volty_mt5.all_candles[symbol].tail(3)}')
+async def update_ohlcv(base_symbol, next_ticker):
+    tf = symbols_tf[base_symbol]
+    symbols_trade[base_symbol] = False
+    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, base_symbol, tf, limit=0, timestamp=next_ticker)
+    symbols_trade[base_symbol] = True
+    logger.debug(f'{base_symbol}::\n{stupid_volty_mt5.all_candles[base_symbol].tail(3)}')
 
-async def trade(symbol):
+async def trade(base_symbol):
     try:
-        if symbols_trade[symbol] == False:
+        if symbols_trade[base_symbol] == False:
             return
         
-        tf = symbols_tf[symbol]
-        symbol_tick = mt5.symbol_info_tick(symbol)
+        tf = symbols_tf[base_symbol]
+        symbol_tick = mt5.symbol_info_tick(base_symbol)
         if symbol_tick is None:
-            msg = f"{symbol} trade :: symbol_tick is None"
+            msg = f"{base_symbol} trade :: symbol_tick is None"
             logger.debug(msg)
             print(msg)
             return
@@ -509,16 +523,16 @@ async def trade(symbol):
         price_sell = symbol_tick.bid
         mid_price = (price_buy + price_sell) / 2
 
-        last_signal = all_signals[symbol] if symbol in all_signals.keys() else 0
-        is_long, is_short, buy_signal, sell_signal = stupid_volty_mt5.get_signal(symbol, config.signal_index)
+        last_signal = all_signals[base_symbol] if base_symbol in all_signals.keys() else 0
+        is_long, is_short, buy_signal, sell_signal = stupid_volty_mt5.get_signal(base_symbol, config.signal_index)
 
         spread_factor = 2
         price_spread = (price_buy - price_sell) * spread_factor
         signal_spread = buy_signal - sell_signal
         # ถ้า ค่าสเปรด คูณ factor มากกว่าความกว้างสัญญาณ ให้ข้าม
         if price_spread > signal_spread:
-            print(f"{symbol} trade skip :: price_spread x {spread_factor}:{price_spread} > signal_spread:{signal_spread}")
-            symbols_trade[symbol] = False
+            print(f"{base_symbol} trade skip :: price_spread x {spread_factor}:{price_spread} > signal_spread:{signal_spread}")
+            symbols_trade[base_symbol] = False
             return
         
         is_long = False
@@ -531,102 +545,104 @@ async def trade(symbol):
             is_short = price_sell < sell_signal and last_signal != -1
         fibo_data = None
         msg = ""
+        symbol = broker_symbol(base_symbol)
         if is_long:
             # close all sell
-            all_positions = positions_get(symbol)
+            all_positions = positions_get(base_symbol)
             has_long_position = False
             for index, position in all_positions.iterrows():
-                if position["symbol"] == symbol and position["magic"] == magic_number:
+                if position["symbol"] == base_symbol and position["magic"] == magic_number:
                     if position["type"] == ORDER_TYPE[1]:
-                        all_signals[symbol] = 0
-                        position_id = close_sell(symbol, position['identifier'], position['volume'], position['price_open'])
-                        all_stat[symbol]["summary_profit"] += position['profit']
+                        all_signals[base_symbol] = 0
+                        position_id = close_sell(base_symbol, position['identifier'], position['volume'], position['price_open'])
+                        all_stat[base_symbol]["summary_profit"] += position['profit']
                         if position['profit'] > 0:
-                            all_stat[symbol]["win"] += 1
-                            all_stat[symbol]["last_loss"] = 0
+                            all_stat[base_symbol]["win"] += 1
+                            all_stat[base_symbol]["last_loss"] = 0
                             # all_stat[symbol]["martingale_profit"] = 0
                         else:
-                            all_stat[symbol]["loss"] += 1
-                            all_stat[symbol]["last_loss"] += 1
+                            all_stat[base_symbol]["loss"] += 1
+                            all_stat[base_symbol]["last_loss"] += 1
                             # all_stat[symbol]["martingale_profit"] += position['profit']
-                        notify.Send_Text(f'{symbol}\nWin = {all_stat[symbol]["win"]}\nLoss = {all_stat[symbol]["loss"]}\nPNL = {all_stat[symbol]["summary_profit"]:0.2f}')
+                        notify.Send_Text(f'{base_symbol}\nWin = {all_stat[base_symbol]["win"]}\nLoss = {all_stat[base_symbol]["loss"]}\nPNL = {all_stat[base_symbol]["summary_profit"]:0.2f}')
                     elif position["type"] == ORDER_TYPE[0]:
-                        all_signals[symbol] = 1
+                        all_signals[base_symbol] = 1
                         has_long_position = True
             if not has_long_position:
                 # calculate fibo
                 price_buy = mt5.symbol_info_tick(symbol).ask
-                cal_lot = cal_martingal_lot(symbol)
-                fibo_data = cal_tpsl(symbol, stupid_share.Direction.LONG, price_buy)
-                position_id = trade_buy(symbol, price_buy, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[symbol]["last_loss"])
+                cal_lot = cal_martingal_lot(base_symbol)
+                fibo_data = cal_tpsl(base_symbol, stupid_share.Direction.LONG, price_buy)
+                position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[base_symbol]["last_loss"])
                 if position_id > 0:
-                    all_signals[symbol] = 1
-                symbols_trade[symbol] = False
-                msg = f"Signal Long {symbol}\nticker: {position_id}"
+                    all_signals[base_symbol] = 1
+                symbols_trade[base_symbol] = False
+                msg = f"Signal Long {base_symbol}\nticker: {position_id}"
                 print(msg)
         elif is_short:
             # close all buy
-            all_positions = positions_get(symbol)
+            all_positions = positions_get(base_symbol)
             has_short_position = False
             for index, position in all_positions.iterrows():
-                if position["symbol"] == symbol and position["magic"] == magic_number:
+                if position["symbol"] == base_symbol and position["magic"] == magic_number:
                     if position["type"] == ORDER_TYPE[0]:
-                        all_signals[symbol] = 0
-                        position_id = close_buy(symbol, position['identifier'], position['volume'], position['price_open'])
-                        all_stat[symbol]["summary_profit"] += position['profit']
+                        all_signals[base_symbol] = 0
+                        position_id = close_buy(base_symbol, position['identifier'], position['volume'], position['price_open'])
+                        all_stat[base_symbol]["summary_profit"] += position['profit']
                         if position['profit'] > 0:
-                            all_stat[symbol]["win"] += 1
-                            all_stat[symbol]["last_loss"] = 0
+                            all_stat[base_symbol]["win"] += 1
+                            all_stat[base_symbol]["last_loss"] = 0
                             # all_stat[symbol]["martingale_profit"] = 0
                         else:
-                            all_stat[symbol]["loss"] += 1
-                            all_stat[symbol]["last_loss"] += 1
+                            all_stat[base_symbol]["loss"] += 1
+                            all_stat[base_symbol]["last_loss"] += 1
                             # all_stat[symbol]["martingale_profit"] += position['profit']
-                        notify.Send_Text(f'{symbol}\nWin = {all_stat[symbol]["win"]}\nLoss = {all_stat[symbol]["loss"]}\nPNL = {all_stat[symbol]["summary_profit"]:0.2f}')
+                        notify.Send_Text(f'{base_symbol}\nWin = {all_stat[base_symbol]["win"]}\nLoss = {all_stat[base_symbol]["loss"]}\nPNL = {all_stat[base_symbol]["summary_profit"]:0.2f}')
                     elif position["type"] == ORDER_TYPE[1]:
-                        all_signals[symbol] = -1
+                        all_signals[base_symbol] = -1
                         has_short_position = True
             if not has_short_position:
                 # calculate fibo
                 price_sell = mt5.symbol_info_tick(symbol).bid
-                cal_lot = cal_martingal_lot(symbol)
-                fibo_data = cal_tpsl(symbol, stupid_share.Direction.SHORT, price_sell)
-                position_id = trade_sell(symbol, price_sell, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[symbol]["last_loss"])
+                cal_lot = cal_martingal_lot(base_symbol)
+                fibo_data = cal_tpsl(base_symbol, stupid_share.Direction.SHORT, price_sell)
+                position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[base_symbol]["last_loss"])
                 if position_id > 0:
-                    all_signals[symbol] = -1
-                symbols_trade[symbol] = False
-                msg = f"Signal Short {symbol}\nticker: {position_id}"
+                    all_signals[base_symbol] = -1
+                symbols_trade[base_symbol] = False
+                msg = f"Signal Short {base_symbol}\nticker: {position_id}"
                 print(msg)
 
         if (is_long and not has_long_position) or (is_short and not has_short_position):
-            print(f"\r[{symbol}] Buy Signal : {buy_signal:5.2f}, Sell_Signal : {sell_signal:5.2f}")
-            print(f"\r[{symbol}] Ask Price  : {price_buy:5.2f}, Bid Price   : {price_sell:5.2f}")
-            logger.info(f'{symbol} :: is_long={is_long}, is_short={is_short}, buy_signal={buy_signal}, sell_signal={sell_signal}, price_buy={price_buy}, price_sell={price_sell}')
+            print(f"\r[{base_symbol}] Buy Signal : {buy_signal:5.2f}, Sell_Signal : {sell_signal:5.2f}")
+            print(f"\r[{base_symbol}] Ask Price  : {price_buy:5.2f}, Bid Price   : {price_sell:5.2f}")
+            logger.info(f'{base_symbol} :: is_long={is_long}, is_short={is_short}, buy_signal={buy_signal}, sell_signal={sell_signal}, price_buy={price_buy}, price_sell={price_sell}')
 
             filename = ''
             if fibo_data:
-                filename = await stupid_volty_mt5.chart(symbol, tf, showMACDRSI=True, fiboData=fibo_data)
+                filename = await stupid_volty_mt5.chart(base_symbol, tf, showMACDRSI=True, fiboData=fibo_data)
             else:
-                filename = await stupid_volty_mt5.chart(symbol, tf, showMACDRSI=True)
+                filename = await stupid_volty_mt5.chart(base_symbol, tf, showMACDRSI=True)
             notify.Send_Image(msg, image_path=filename)
 
     except Exception as ex:
-        print(f"{symbol} found error:", type(ex).__name__, str(ex))
-        logger.exception(f'trade - {symbol}')
+        print(f"{base_symbol} found error:", type(ex).__name__, str(ex))
+        logger.exception(f'trade - {base_symbol}')
         pass
 
-async def init_symbol_ohlcv(symbol):
-    tf = symbols_tf[symbol]
-    logger.info(f"init_symbol_ohlcv - {symbol}")
+async def init_symbol_ohlcv(base_symbol):
+    tf = symbols_tf[base_symbol]
+    logger.info(f"init_symbol_ohlcv - {base_symbol}")
     # symbol_info = mt5.symbol_info(symbol)
     # symbol_digits = symbol_info.digits
     # symbol_point = symbol_info.point
     # symbol_info_tick = mt5.symbol_info_tick(symbol)
-    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, symbol, tf, limit=stupid_volty_mt5.CANDLE_LIMIT)
-    await stupid_volty_mt5.chart(symbol, tf, showMACDRSI=True)
+    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, base_symbol, tf, limit=stupid_volty_mt5.CANDLE_LIMIT)
+    await stupid_volty_mt5.chart(base_symbol, tf, showMACDRSI=True)
 
 async def main():
-    for idx, symbol in enumerate(config.symbols):
+    for idx, base_symbol in enumerate(config.symbols):
+        symbol = broker_symbol(base_symbol)
         symbol_info = mt5.symbol_info(symbol)
         if symbol_info is None:
             print(symbol, "not found, can not call order_check()")
@@ -637,16 +653,16 @@ async def main():
         # if the symbol is unavailable in MarketWatch, add it
         if not symbol_info.visible:
             print(symbol, "is not visible, trying to switch on")
-            if not mt5.symbol_select(symbol,True):
-                print("symbol_select({}}) failed, exit",symbol)
+            if not mt5.symbol_select(symbol, True):
+                print("symbol_select({}) failed, exit", symbol)
                 # mt5.shutdown()
                 # quit()
                 continue
 
-        show_bid_ask(symbol)
-        symbols_list.append(symbol)
-        symbols_tf[symbol] = config.timeframe[idx]
-        symbols_trade[symbol] = False
+        show_bid_ask(base_symbol)
+        symbols_list.append(base_symbol)
+        symbols_tf[base_symbol] = config.timeframe[idx]
+        symbols_trade[base_symbol] = False
 
         tpsl_dict = TPLS()
         if config.buy_tp_str[idx].endswith('%'):
@@ -677,8 +693,8 @@ async def main():
             tpsl_dict.is_sell_sl_percent = False
             tpsl_dict.sell_sl = float(config.sell_sl_str[idx])
 
-        symbols_tpsl[symbol] = tpsl_dict
-        logger.debug(f"[{symbol}] symbols_tpsl = {json.dumps(tpsl_dict.__dict__)}")
+        symbols_tpsl[base_symbol] = tpsl_dict
+        logger.debug(f"[{base_symbol}] symbols_tpsl = {json.dumps(tpsl_dict.__dict__)}")
 
     logger.debug(f"symbols_tf = {symbols_tf}")
     logger.debug(f"symbols_trade = {symbols_trade}")
@@ -703,16 +719,16 @@ async def main():
     stupid_volty_mt5.set_config(indy_config)
 
     # init all symbol ohlcv
-    call_inits = [init_symbol_ohlcv(symbol) for symbol in symbols_list]
+    call_inits = [init_symbol_ohlcv(base_symbol) for base_symbol in symbols_list]
     await asyncio.gather(*call_inits)
 
-    logger.debug(f'{symbol}::\n{stupid_volty_mt5.all_candles[symbol].tail(3)}')
+    logger.debug(f'{base_symbol}::\n{stupid_volty_mt5.all_candles[base_symbol].tail(3)}')
 
     # init all symbol stat
     all_positions = positions_getall(symbols_list)
-    for symbol in symbols_list:
-        if symbol not in all_stat.keys():
-            all_stat[symbol] = {
+    for base_symbol in symbols_list:
+        if base_symbol not in all_stat.keys():
+            all_stat[base_symbol] = {
                 "win": 0,
                 "loss": 0,
                 "last_loss": 0,
@@ -728,8 +744,8 @@ async def main():
     next_tf_ticker = time.time()
     next_tf_ticker -= next_tf_ticker % time_wait
 
-    for symbol in symbols_list:
-        symbols_next_tf_ticker[symbol] = next_tf_ticker + TIMEFRAME_SECONDS[symbols_tf[symbol]]
+    for base_symbol in symbols_list:
+        symbols_next_tf_ticker[base_symbol] = next_tf_ticker + TIMEFRAME_SECONDS[symbols_tf[base_symbol]]
 
     # next_tf_ticker += time_wait
 
@@ -774,13 +790,13 @@ async def main():
             positions_report(all_positions)
 
         call_updates = []
-        for symbol in symbols_list:
+        for base_symbol in symbols_list:
             # ตรวจสอบว่าถึงเวลา update ohlcv หรือยัง
-            if seconds >= symbols_next_tf_ticker[symbol] + config.TIME_SHIFT:
+            if seconds >= symbols_next_tf_ticker[base_symbol] + config.TIME_SHIFT:
                 # update ohlcv
-                call_updates.append(update_ohlcv(symbol, symbols_next_tf_ticker[symbol]))
-                symbols_next_tf_ticker[symbol] += TIMEFRAME_SECONDS[symbols_tf[symbol]]
-                print(f"[{symbol}] Update OHLCV : {local_time}")
+                call_updates.append(update_ohlcv(base_symbol, symbols_next_tf_ticker[base_symbol]))
+                symbols_next_tf_ticker[base_symbol] += TIMEFRAME_SECONDS[symbols_tf[base_symbol]]
+                print(f"[{base_symbol}] Update OHLCV : {local_time}")
         if len(call_updates) > 0:
             await asyncio.gather(*call_updates)
 
@@ -794,7 +810,7 @@ async def main():
         if seconds >= next_tick:  # ครบรอบ buy/sell tick
             next_tick += time_tick
 
-            call_trades = [trade(symbol) for symbol in symbols_list]
+            call_trades = [trade(base_symbol) for base_symbol in symbols_list]
             await asyncio.gather(*call_trades)
 
         await asyncio.sleep(1)

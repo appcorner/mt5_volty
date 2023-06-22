@@ -78,6 +78,7 @@ LOGIN = get_str('mt5','login')
 PASSWORD = get_str('mt5','password')
 SERVER = get_str('mt5','server')
 PATH = get_str('mt5','path')
+symbol_suffix = get_str('mt5','symbol_suffix')
 
 #------------------------------------------------------------
 # line
