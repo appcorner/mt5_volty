@@ -108,10 +108,13 @@ symbols_tpsl = {}
 all_signals = {}
 
 def broker_symbol(symbol):
-    if config.symbol_suffix and config.symbol_suffix in symbol:
-        return symbol
+    if len(config.symbol_suffix) > 0:
+        if config.symbol_suffix in symbol:
+            return symbol
+        else:
+            return symbol + config.symbol_suffix
     else:
-        return symbol + config.symbol_suffix
+        return symbol
 
 def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number, step=0):
     symbol = broker_symbol(base_symbol)
