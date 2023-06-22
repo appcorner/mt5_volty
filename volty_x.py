@@ -515,9 +515,10 @@ async def trade(base_symbol):
             return
         
         tf = symbols_tf[base_symbol]
-        symbol_tick = mt5.symbol_info_tick(base_symbol)
+        symbol = broker_symbol(base_symbol)
+        symbol_tick = mt5.symbol_info_tick(symbol)
         if symbol_tick is None:
-            msg = f"{base_symbol} trade :: symbol_tick is None"
+            msg = f"{symbol} trade :: symbol_tick is None"
             logger.debug(msg)
             print(msg)
             return
