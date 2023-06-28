@@ -45,7 +45,6 @@ TIMEFRAME_MT5 = {
     '1d': mt5.TIMEFRAME_D1,
 }
 
-TDV_MARKET = 'OANDA'
 TIMEFRAME_TDV = {
     '1m': Interval.in_1_minute,
     '3m': Interval.in_3_minute,
@@ -79,7 +78,8 @@ indicator_config = {
     "atr_multiple": 0.75,
     "is_confirm_macd": False,
     "is_macd_cross": False,
-    "is_tdv_ohlcv": False
+    "is_tdv_ohlcv": False,
+    "tdv_market": 'OANDA'
 }
 
 def nz(value, default):
@@ -199,10 +199,10 @@ async def fetch_ohlcv(exchange, symbol, timeframe, limit=CANDLE_LIMIT, timestamp
             logger.debug(f"fetch_ohlcv {symbol} {timestamp} {last_candle_time} {timestamp-last_candle_time} {ts_adjust_secs} {cal_limit} {limit}")
         
         if config['is_tdv_ohlcv']:
-            ohlcv_bars = tv.get_hist(symbol,TDV_MARKET,TIMEFRAME_TDV[timeframe],limit)
+            ohlcv_bars = tv.get_hist(symbol,config['tdv_market'],TIMEFRAME_TDV[timeframe],limit)
         else:
             ohlcv_bars  = mt5.copy_rates_from_pos(symbol, TIMEFRAME_MT5[timeframe], 0, limit)
-            
+
         # ohlcv_bars['symbol'] = ohlcv_bars['symbol'].apply(lambda x: x[x.find(':')+1:])
         logger.info(f"{symbol} fetch_ohlcv, limit:{limit}, len:{len(ohlcv_bars)}")
         if len(ohlcv_bars):

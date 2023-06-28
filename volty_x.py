@@ -726,6 +726,7 @@ async def main():
     indy_config["is_confirm_macd"] = config.is_confirm_macd
     indy_config["is_macd_cross"] = config.is_macd_cross
     indy_config["is_tdv_ohlcv"] = config.is_tdv_ohlcv
+    indy_config["tdv_market"] = config.tdv_market
     logger.debug(indy_config)
     stupid_volty_mt5.set_config(indy_config)
 

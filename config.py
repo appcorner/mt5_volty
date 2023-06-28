@@ -80,6 +80,7 @@ SERVER = get_str('mt5','server')
 PATH = get_str('mt5','path')
 symbol_suffix = get_str('mt5','symbol_suffix')
 is_tdv_ohlcv = get_str('mt5','tdv_ohlcv', 'off') == 'on'
+tdv_market = get_str('mt5','tdv_market', 'OANDA')
 
 #------------------------------------------------------------
 # line
