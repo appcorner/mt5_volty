@@ -505,7 +505,10 @@ async def update_trade(base_symbol, next_ticker):
 async def update_ohlcv(base_symbol, next_ticker):
     tf = symbols_tf[base_symbol]
     symbols_trade[base_symbol] = False
-    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, base_symbol, tf, limit=0, timestamp=next_ticker)
+    symbol_ohlcv = broker_symbol(base_symbol)
+    if config.is_tdv_ohlcv:
+        symbol_ohlcv = base_symbol
+    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, symbol_ohlcv, tf, limit=0, timestamp=next_ticker)
     symbols_trade[base_symbol] = True
     logger.debug(f'{base_symbol}::\n{stupid_volty_mt5.all_candles[base_symbol].tail(3)}')
 
@@ -530,11 +533,11 @@ async def trade(base_symbol):
         last_signal = all_signals[base_symbol] if base_symbol in all_signals.keys() else 0
         is_long, is_short, buy_signal, sell_signal = stupid_volty_mt5.get_signal(base_symbol, config.signal_index)
 
-        spread_factor = 2
+        spread_factor = config.spread_factor
         price_spread = (price_buy - price_sell) * spread_factor
         signal_spread = buy_signal - sell_signal
         # ถ้า ค่าสเปรด คูณ factor มากกว่าความกว้างสัญญาณ ให้ข้าม
-        if price_spread > signal_spread:
+        if config.is_validate_spread and price_spread > signal_spread:
             print(f"{base_symbol} trade skip :: price_spread x {spread_factor}:{price_spread} > signal_spread:{signal_spread}")
             symbols_trade[base_symbol] = False
             return
@@ -641,7 +644,10 @@ async def init_symbol_ohlcv(base_symbol):
     # symbol_digits = symbol_info.digits
     # symbol_point = symbol_info.point
     # symbol_info_tick = mt5.symbol_info_tick(symbol)
-    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, base_symbol, tf, limit=stupid_volty_mt5.CANDLE_LIMIT)
+    symbol_ohlcv = broker_symbol(base_symbol)
+    if config.is_tdv_ohlcv:
+        symbol_ohlcv = base_symbol
+    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, symbol_ohlcv, tf, limit=stupid_volty_mt5.CANDLE_LIMIT)
     await stupid_volty_mt5.chart(base_symbol, tf, showMACDRSI=True)
 
 async def main():
@@ -719,6 +725,7 @@ async def main():
     indy_config["atr_multiple"] = config.atr_multiple
     indy_config["is_confirm_macd"] = config.is_confirm_macd
     indy_config["is_macd_cross"] = config.is_macd_cross
+    indy_config["is_tdv_ohlcv"] = config.is_tdv_ohlcv
     logger.debug(indy_config)
     stupid_volty_mt5.set_config(indy_config)
 

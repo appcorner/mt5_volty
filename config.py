@@ -79,6 +79,7 @@ PASSWORD = get_str('mt5','password')
 SERVER = get_str('mt5','server')
 PATH = get_str('mt5','path')
 symbol_suffix = get_str('mt5','symbol_suffix')
+is_tdv_ohlcv = get_str('mt5','tdv_ohlcv', 'off') == 'on'
 
 #------------------------------------------------------------
 # line
@@ -113,6 +114,8 @@ symbols = get_list('setting', 'symbols', ['XAUUSD'])
 lot = get_float('setting', 'lot', 0.01)
 deviation = get_int('setting', 'deviation', 20)
 is_use_midprice = get_str('setting', 'use_midprice', 'off') == 'on'
+spread_factor = get_float('setting', 'spread_factor', 2.0)
+is_validate_spread = get_str('setting', 'validate_spread', 'off') == 'on'
 
 atr_length = get_int('setting', 'atr_length', 100)
 atr_multiple = get_float('setting', 'atr_multiple', 0.75)

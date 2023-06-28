@@ -79,6 +79,7 @@ indicator_config = {
     "atr_multiple": 0.75,
     "is_confirm_macd": False,
     "is_macd_cross": False,
+    "is_tdv_ohlcv": False
 }
 
 def nz(value, default):
@@ -196,9 +197,12 @@ async def fetch_ohlcv(exchange, symbol, timeframe, limit=CANDLE_LIMIT, timestamp
             cal_limit = round(1.5+(timestamp-last_candle_time)/timeframe_secs)
             limit = cal_limit if cal_limit < CANDLE_LIMIT else CANDLE_LIMIT
             logger.debug(f"fetch_ohlcv {symbol} {timestamp} {last_candle_time} {timestamp-last_candle_time} {ts_adjust_secs} {cal_limit} {limit}")
+        
+        if config['is_tdv_ohlcv']:
+            ohlcv_bars = tv.get_hist(symbol,TDV_MARKET,TIMEFRAME_TDV[timeframe],limit)
+        else:
+            ohlcv_bars  = mt5.copy_rates_from_pos(symbol, TIMEFRAME_MT5[timeframe], 0, limit)
             
-        # ohlcv_bars  = mt5.copy_rates_from_pos(symbol, TIMEFRAME_MT5[timeframe], 0, limit)
-        ohlcv_bars = tv.get_hist(symbol,TDV_MARKET,TIMEFRAME_TDV[timeframe],limit)
         # ohlcv_bars['symbol'] = ohlcv_bars['symbol'].apply(lambda x: x[x.find(':')+1:])
         logger.info(f"{symbol} fetch_ohlcv, limit:{limit}, len:{len(ohlcv_bars)}")
         if len(ohlcv_bars):
