@@ -115,7 +115,12 @@ def broker_symbol(symbol):
             return symbol + config.symbol_suffix
     else:
         return symbol
-
+def symbol_only(symbol):
+    if len(config.symbol_suffix) > 0:
+        return symbol.replace(config.symbol_suffix, '')
+    else:
+        return symbol
+    
 def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number, step=0):
     symbol = broker_symbol(base_symbol)
     point = mt5.symbol_info(symbol).point
@@ -281,6 +286,7 @@ def modify_position(base_symbol, position_id, new_sl, new_tp, magic_number=magic
         return False
 # Function to update trailing stop if needed
 def update_trailing_stop(position):
+    # not revise code, don't use it now
     symbol = position['symbol']
     symbol_info = mt5.symbol_info(symbol)
     symbol_digits = symbol_info.digits
@@ -359,8 +365,9 @@ def positions_check(positions, old_position_ids):
             # df['time_done'] = pd.to_datetime(df['time_done'], unit='s')
             # logger.debug(f"\n{df.columns}")
             symbol = df['symbol'].iloc[0]
+            base_symbol = symbol_only(symbol)
             point = mt5.symbol_info(symbol).point
-            logger.debug(f"{symbol}\n{df[['position_id', 'type', 'type_filling', 'volume_initial', 'price_open', 'price_current', 'comment']]}")
+            logger.debug(f"positions_check {base_symbol}\n{df[['position_id', 'type', 'type_filling', 'volume_initial', 'price_open', 'price_current', 'comment']]}")
             close_by = ''
             price_current = 0.0
             profit = 0.0
@@ -373,15 +380,15 @@ def positions_check(positions, old_position_ids):
                     close_by = 'SL'
                     price_current = row['price_current']
                 # logger.debug(f"profit = {profit}")
-            all_stat[symbol]["summary_profit"] += round(profit , 2)
+            all_stat[base_symbol]["summary_profit"] += round(profit , 2)
             if profit > 0:
-                all_stat[symbol]["win"] += 1
-                all_stat[symbol]["last_loss"] = 0
+                all_stat[base_symbol]["win"] += 1
+                all_stat[base_symbol]["last_loss"] = 0
             elif profit < 0:
-                all_stat[symbol]["loss"] += 1
-                all_stat[symbol]["last_loss"] += 1
+                all_stat[base_symbol]["loss"] += 1
+                all_stat[base_symbol]["last_loss"] += 1
             if close_by != '':
-                notify.Send_Text(f"{symbol}\nTrade {close_by}\nPrice = {price_current}\nProfit = {profit:.2f}")
+                notify.Send_Text(f"{base_symbol}\nTrade {close_by}\nPrice = {price_current}\nProfit = {profit:.2f}")
 
 def positions_report(positions):
     if len(positions) > 0:
@@ -411,7 +418,7 @@ def positions_getall(symbols_list):
         df["time"] = pd.to_datetime(df["time"], unit="s").map(
             lambda x: x+pd.Timedelta(hours=MT_ADJUST)
         )
-        df["symbol"] = df["symbol"].map(lambda x: x.replace(config.symbol_suffix, '')) 
+        df["symbol"] = df["symbol"].map(lambda x: symbol_only(x)) 
         df["type"] = df["type"].map(lambda x: ORDER_TYPE[x])
         df.drop(df[df["symbol"].isin(symbols_list) == False].index, inplace=True)
         # logger.debug(df.columns)
@@ -428,6 +435,7 @@ def positions_get(base_symbol):
         df["time"] = pd.to_datetime(df["time"], unit="s").map(
             lambda x: x+pd.Timedelta(hours=MT_ADJUST)
         )
+        df["symbol"] = df["symbol"].map(lambda x: symbol_only(x)) 
         df["type"] = df["type"].map(lambda x: ORDER_TYPE[x])
         # logger.debug(df.columns)
         return df
@@ -550,12 +558,12 @@ async def trade(base_symbol):
             is_short = price_sell < sell_signal and last_signal != -1
         fibo_data = None
         msg = ""
-        symbol = broker_symbol(base_symbol)
         if is_long:
             # close all sell
             all_positions = positions_get(base_symbol)
             has_long_position = False
             for index, position in all_positions.iterrows():
+                logger.debug(f"[{base_symbol}] close sell position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
                 if position["symbol"] == base_symbol and position["magic"] == magic_number:
                     if position["type"] == ORDER_TYPE[1]:
                         all_signals[base_symbol] = 0
@@ -589,6 +597,7 @@ async def trade(base_symbol):
             all_positions = positions_get(base_symbol)
             has_short_position = False
             for index, position in all_positions.iterrows():
+                logger.debug(f"[{base_symbol}] close buy position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
                 if position["symbol"] == base_symbol and position["magic"] == magic_number:
                     if position["type"] == ORDER_TYPE[0]:
                         all_signals[base_symbol] = 0

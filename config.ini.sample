@@ -4,6 +4,8 @@ password =
 server = FBS-Real
 ; path = D:\mt5_terminal\FBS_02\terminal64.exe
 ; symbol_suffix = -ECN
+tdv_ohlcv = off
+tdv_market = OANDA
 
 [line]
 notify_token = 
@@ -32,6 +34,9 @@ lot = 0.01
 deviation = 20
 ;# ใช้ค่ากลางระหว่าง bid ask ในการตรวจสัญญาน
 ;use_midprice = on
+;# ตัวคูณค่าสเปรดสำหรับการเปิดสัญญาน
+spread_factor = 2
+validate_spread = off
 
 atr_length = 4
 atr_multiple = 0.75
