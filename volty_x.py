@@ -33,7 +33,7 @@ class TPLS(object):
 
 bot_name = 'Volty'
 magic_code = 'VT'
-bot_vesion = '1.1.0'
+bot_vesion = '1.2.0'
 
 bot_fullname = f'MT5 {bot_name} version {bot_vesion}'
 
@@ -128,7 +128,7 @@ def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_nu
         "deviation": deviation,
         "magic": magic_number,
         "type_time": mt5.ORDER_TIME_GTC,
-        # "type_filling": mt5.ORDER_FILLING_RETURN,
+        "type_filling": mt5.ORDER_FILLING_IOC,
     }
     if sl > 0:
         request["sl"] = sl
@@ -171,7 +171,7 @@ def close_buy(base_symbol, position_id, lot, price_open):
         "magic": magic_number,
         "comment": magic_code,
         "type_time": mt5.ORDER_TIME_GTC,
-        # "type_filling": mt5.ORDER_FILLING_RETURN,
+        "type_filling": mt5.ORDER_FILLING_IOC,
     }
     # send a trading request
     result = mt5.order_send(request)
@@ -199,7 +199,7 @@ def trade_sell(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_n
         "deviation": deviation,
         "magic": magic_number,
         "type_time": mt5.ORDER_TIME_GTC,
-        # "type_filling": mt5.ORDER_FILLING_RETURN,
+        "type_filling": mt5.ORDER_FILLING_IOC,
     }
     if sl > 0:
         request["sl"] = sl
@@ -242,7 +242,7 @@ def close_sell(base_symbol, position_id, lot, price_open):
         "magic": magic_number,
         "comment": magic_code,
         "type_time": mt5.ORDER_TIME_GTC,
-        # "type_filling": mt5.ORDER_FILLING_RETURN,
+        "type_filling": mt5.ORDER_FILLING_IOC,
     }
     # send a trading request
     result = mt5.order_send(request)
@@ -411,6 +411,7 @@ def positions_getall(symbols_list):
         df["time"] = pd.to_datetime(df["time"], unit="s").map(
             lambda x: x+pd.Timedelta(hours=MT_ADJUST)
         )
+        df["symbol"] = df["symbol"].map(lambda x: x.replace(config.symbol_suffix, '')) 
         df["type"] = df["type"].map(lambda x: ORDER_TYPE[x])
         df.drop(df[df["symbol"].isin(symbols_list) == False].index, inplace=True)
         # logger.debug(df.columns)
@@ -505,10 +506,7 @@ async def update_trade(base_symbol, next_ticker):
 async def update_ohlcv(base_symbol, next_ticker):
     tf = symbols_tf[base_symbol]
     symbols_trade[base_symbol] = False
-    symbol_ohlcv = broker_symbol(base_symbol)
-    if config.is_tdv_ohlcv:
-        symbol_ohlcv = base_symbol
-    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, symbol_ohlcv, tf, limit=0, timestamp=next_ticker)
+    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, base_symbol, tf, limit=0, timestamp=next_ticker, symbol_suffix=config.symbol_suffix)
     symbols_trade[base_symbol] = True
     logger.debug(f'{base_symbol}::\n{stupid_volty_mt5.all_candles[base_symbol].tail(3)}')
 
@@ -644,11 +642,10 @@ async def init_symbol_ohlcv(base_symbol):
     # symbol_digits = symbol_info.digits
     # symbol_point = symbol_info.point
     # symbol_info_tick = mt5.symbol_info_tick(symbol)
-    symbol_ohlcv = broker_symbol(base_symbol)
-    if config.is_tdv_ohlcv:
-        symbol_ohlcv = base_symbol
-    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, symbol_ohlcv, tf, limit=stupid_volty_mt5.CANDLE_LIMIT)
+    await stupid_volty_mt5.fetch_ohlcv(trade_mt5, base_symbol, tf, limit=stupid_volty_mt5.CANDLE_LIMIT, symbol_suffix=config.symbol_suffix)
     await stupid_volty_mt5.chart(base_symbol, tf, showMACDRSI=True)
+
+    logger.debug(f'{base_symbol}::\n{stupid_volty_mt5.all_candles[base_symbol].tail(3)}')
 
 async def main():
     for idx, base_symbol in enumerate(config.symbols):
@@ -714,6 +711,8 @@ async def main():
         mt5.shutdown()
         exit()
 
+    logger.debug(f"symbols_list = {symbols_list}")
+
     # orders = mt5.orders_total()
     # if orders > 0:
     #     print("Total orders=",orders)
@@ -733,8 +732,6 @@ async def main():
     # init all symbol ohlcv
     call_inits = [init_symbol_ohlcv(base_symbol) for base_symbol in symbols_list]
     await asyncio.gather(*call_inits)
-
-    logger.debug(f'{base_symbol}::\n{stupid_volty_mt5.all_candles[base_symbol].tail(3)}')
 
     # init all symbol stat
     all_positions = positions_getall(symbols_list)

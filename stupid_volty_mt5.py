@@ -94,16 +94,18 @@ def set_config(config):
             indicator_config[key] = config[key]
 
 def set_indicator(symbol, bars, config=indicator_config):
-    # df = pd.DataFrame(
-    #     bars, columns=["time", "open", "high", "low", "close", "tick_volume", "spread", "real_volume"]
-    # )
-    # df["time"] = pd.to_datetime(df["time"], unit="s").map(
-    #     lambda x: (x+pd.Timedelta(hours=MT_ADJUST))
-    # )
-    # # df["time"] = pd.to_datetime(df["time"], unit="s")
-    # df = df.set_index("time")
-    # df.rename({'tick_volume': 'volume'}, axis=1, inplace=True)
-    df = bars.copy()
+    if config['is_tdv_ohlcv']:
+        df = bars.copy()
+    else:
+        df = pd.DataFrame(
+            bars, columns=["time", "open", "high", "low", "close", "tick_volume", "spread", "real_volume"]
+        )
+        df["time"] = pd.to_datetime(df["time"], unit="s").map(
+            lambda x: (x+pd.Timedelta(hours=MT_ADJUST))
+        )
+        # df["time"] = pd.to_datetime(df["time"], unit="s")
+        df = df.set_index("time")
+        df.rename({'tick_volume': 'volume'}, axis=1, inplace=True)
 
     # เอาข้อมูลใหม่ไปต่อท้าย ข้อมูลที่มีอยู่
     if symbol in all_candles.keys() and len(df) < CANDLE_LIMIT:
@@ -182,7 +184,7 @@ timeframe: candle time frame
 limit: จำนวนแท่งที่ต้องการ, ใส่ 0 หากต้องการให้เอาแท่งใหม่ที่ไม่มาครบ
 timestamp: ระบุเวลาปัจจุบัน ถ้า limit=0
 """
-async def fetch_ohlcv(exchange, symbol, timeframe, limit=CANDLE_LIMIT, timestamp=0, config=indicator_config):
+async def fetch_ohlcv(exchange, symbol, timeframe, limit=CANDLE_LIMIT, timestamp=0, config=indicator_config, symbol_suffix=''):
     global all_candles
     if not exchange:
         print("No MT5 Connect")
@@ -201,9 +203,7 @@ async def fetch_ohlcv(exchange, symbol, timeframe, limit=CANDLE_LIMIT, timestamp
         if config['is_tdv_ohlcv']:
             ohlcv_bars = tv.get_hist(symbol,config['tdv_market'],TIMEFRAME_TDV[timeframe],limit)
         else:
-            ohlcv_bars  = mt5.copy_rates_from_pos(symbol, TIMEFRAME_MT5[timeframe], 0, limit)
-
-        # ohlcv_bars['symbol'] = ohlcv_bars['symbol'].apply(lambda x: x[x.find(':')+1:])
+            ohlcv_bars  = mt5.copy_rates_from_pos(f"{symbol}{symbol_suffix}", TIMEFRAME_MT5[timeframe], 0, limit)
         logger.info(f"{symbol} fetch_ohlcv, limit:{limit}, len:{len(ohlcv_bars)}")
         if len(ohlcv_bars):
             all_candles[symbol] = set_indicator(symbol, ohlcv_bars, config=config)
