@@ -107,6 +107,8 @@ symbols_tpsl = {}
 
 all_signals = {}
 
+trade_count = {}
+
 def broker_symbol(symbol):
     if len(config.symbol_suffix) > 0:
         if config.symbol_suffix in symbol:
@@ -495,6 +497,9 @@ def cal_tpsl(base_symbol, direction:stupid_share.Direction, price_target):
                 tp_mode = ''
             fibo_data['tp'] = tp
             fibo_data['tp_txt'] = 'TP: {} @{}'.format(tp_mode, round(tp, symbol_digits))
+        else:
+            fibo_data['tp'] = 0
+            fibo_data['tp_txt'] = 'No TP'
         if config_sl > 0:
             if config_is_sl_percent:
                 sl = round(price_target - (price_target * config_sl * direction_multiplier), symbol_digits)
@@ -504,6 +509,9 @@ def cal_tpsl(base_symbol, direction:stupid_share.Direction, price_target):
                 sl_mode = ''
             fibo_data['sl'] = sl
             fibo_data['sl_txt'] = 'SL: {} @{}'.format(sl_mode, round(sl, symbol_digits))
+        else:
+            fibo_data['sl'] = 0
+            fibo_data['sl_txt'] = 'No SL'
     return fibo_data
 
 async def update_trade(base_symbol, next_ticker):
@@ -557,15 +565,18 @@ async def trade(base_symbol):
             is_long = price_buy > buy_signal and last_signal != 1
             is_short = price_sell < sell_signal and last_signal != -1
         fibo_data = None
+        position_id = 0
         msg = ""
         if is_long:
-            # close all sell
+            # check old position
             all_positions = positions_get(base_symbol)
             has_long_position = False
+            trade_count[base_symbol] = 0
             for index, position in all_positions.iterrows():
                 logger.debug(f"[{base_symbol}] close sell position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
                 if position["symbol"] == base_symbol and position["magic"] == magic_number:
-                    if position["type"] == ORDER_TYPE[1]:
+                    trade_count[base_symbol] += 1
+                    if config.is_single_position and position["type"] == ORDER_TYPE[1]:
                         all_signals[base_symbol] = 0
                         position_id = close_sell(base_symbol, position['identifier'], position['volume'], position['price_open'])
                         all_stat[base_symbol]["summary_profit"] += position['profit']
@@ -581,7 +592,7 @@ async def trade(base_symbol):
                     elif position["type"] == ORDER_TYPE[0]:
                         all_signals[base_symbol] = 1
                         has_long_position = True
-            if not has_long_position:
+            if trade_count[base_symbol] < config.trade_limit and (not config.is_single_position or not has_long_position):
                 # calculate fibo
                 price_buy = mt5.symbol_info_tick(symbol).ask
                 cal_lot = cal_martingal_lot(base_symbol)
@@ -593,13 +604,15 @@ async def trade(base_symbol):
                 msg = f"Signal Long {base_symbol}\nticker: {position_id}"
                 print(msg)
         elif is_short:
-            # close all buy
+            # check old position
             all_positions = positions_get(base_symbol)
             has_short_position = False
+            trade_count[base_symbol] = 0
             for index, position in all_positions.iterrows():
                 logger.debug(f"[{base_symbol}] close buy position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
                 if position["symbol"] == base_symbol and position["magic"] == magic_number:
-                    if position["type"] == ORDER_TYPE[0]:
+                    trade_count[base_symbol] += 1
+                    if config.is_single_position and position["type"] == ORDER_TYPE[0]:
                         all_signals[base_symbol] = 0
                         position_id = close_buy(base_symbol, position['identifier'], position['volume'], position['price_open'])
                         all_stat[base_symbol]["summary_profit"] += position['profit']
@@ -615,7 +628,7 @@ async def trade(base_symbol):
                     elif position["type"] == ORDER_TYPE[1]:
                         all_signals[base_symbol] = -1
                         has_short_position = True
-            if not has_short_position:
+            if trade_count[base_symbol] < config.trade_limit and (not config.is_single_position or not has_short_position):
                 # calculate fibo
                 price_sell = mt5.symbol_info_tick(symbol).bid
                 cal_lot = cal_martingal_lot(base_symbol)
@@ -627,7 +640,7 @@ async def trade(base_symbol):
                 msg = f"Signal Short {base_symbol}\nticker: {position_id}"
                 print(msg)
 
-        if (is_long and not has_long_position) or (is_short and not has_short_position):
+        if position_id > 0:
             print(f"\r[{base_symbol}] Buy Signal : {buy_signal:5.2f}, Sell_Signal : {sell_signal:5.2f}")
             print(f"\r[{base_symbol}] Ask Price  : {price_buy:5.2f}, Bid Price   : {price_sell:5.2f}")
             logger.info(f'{base_symbol} :: is_long={is_long}, is_short={is_short}, buy_signal={buy_signal}, sell_signal={sell_signal}, price_buy={price_buy}, price_sell={price_sell}')

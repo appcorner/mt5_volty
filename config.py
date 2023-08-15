@@ -110,6 +110,9 @@ timeframe = get_list('setting', 'timeframe', ['5m'])
 signal_index = get_int('setting', 'signal_index', -2)
 magic_number = get_int('setting', 'magic_number', '999111')
 
+trade_limit = get_int('setting', 'trade_limit', 1)
+is_single_position = get_str('setting', 'single_position', 'off') == 'on'
+
 # symbol = get_str('setting', 'symbol', 'XAUUSD')
 symbols = get_list('setting', 'symbols', ['XAUUSD'])
 lot = get_float('setting', 'lot', 0.01)
