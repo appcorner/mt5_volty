@@ -86,6 +86,7 @@ tdv_market = get_str('mt5','tdv_market', 'OANDA')
 # line
 #------------------------------------------------------------
 LINE_NOTIFY_TOKEN = get_str('line','notify_token')
+is_chart_mode = get_str('line','chart_mode', 'off') == 'on'
 
 #------------------------------------------------------------
 # app_config
@@ -110,7 +111,13 @@ timeframe = get_list('setting', 'timeframe', ['5m'])
 signal_index = get_int('setting', 'signal_index', -2)
 magic_number = get_int('setting', 'magic_number', '999111')
 
+init_balance = get_float('setting', 'init_balance', 0.0)
+is_save_balance = get_str('setting', 'save_balance', 'off') == 'on'
+
 trade_limit = get_int('setting', 'trade_limit', 1)
+buy_limit = get_int('setting', 'buy_limit', 1)
+sell_limit = get_int('setting', 'sell_limit', 1)
+rw_limit = get_int('setting', 'rw_limit', 1)
 is_single_position = get_str('setting', 'single_position', 'off') == 'on'
 
 # symbol = get_str('setting', 'symbol', 'XAUUSD')
@@ -124,19 +131,26 @@ is_validate_spread = get_str('setting', 'validate_spread', 'off') == 'on'
 atr_length = get_int('setting', 'atr_length', 100)
 atr_multiple = get_float('setting', 'atr_multiple', 0.75)
 
-is_confirm_macd = get_str('setting', 'confirm_macd', 'on') == 'on'
+sto_enter_long = get_float('setting', 'sto_enter_long', 30.0)
+sto_enter_short = get_float('setting', 'sto_enter_short', 70.0)
+sto_step_factor = get_float('setting', 'sto_step_factor', 10)
+
+is_confirm_macd = get_str('setting', 'confirm_macd', 'off') == 'on'
 is_macd_cross = get_str('setting', 'macd_cross', 'off') == 'on'
 
 is_martingale = get_str('setting', 'martingale_mode', 'off') == 'on'
 martingale_factor = get_float('setting', 'martingale_factor', 2.0)
 martingale_max = get_int('setting', 'martingale_max', 8)
 
-is_auto_tpsl = get_str('setting', 'auto_tpsl', 'on') == 'on'
+is_auto_tpsl = get_str('setting', 'auto_tpsl', 'off') == 'on'
 
-buy_tp_str = get_list('setting', 'buy_tp', ['1500'])
-sell_tp_str = get_list('setting', 'sell_tp', ['1500'])
-buy_sl_str = get_list('setting', 'buy_sl', ['500'])
-sell_sl_str = get_list('setting', 'sell_sl', ['500'])
+buy_tp_str = get_list('setting', 'buy_tp', ['15'])
+sell_tp_str = get_list('setting', 'sell_tp', ['0'])
+
+buy_sl_str = get_list('setting', 'buy_sl', ['15'])
+sell_sl_str = get_list('setting', 'sell_sl', ['0'])
+
+tp_amount_str = get_list('setting', 'tp_amount', ['0.5'])
 
 # is_trailing_profit = get_str('setting', 'trailing_profit', 'on') == 'on'
 is_trailing_stop = get_str('setting', 'trailing_stop', 'on') == 'on'

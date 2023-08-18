@@ -74,6 +74,10 @@ indicator_config = {
     "MACD_FAST": 12,
     "MACD_SLOW": 26,
     "MACD_SIGNAL": 9,
+    "STO_K_PERIOD": 15,
+    "STO_SMOOTH_K": 3,
+    "STO_D_PERIOD": 3,
+    "SMA_PERIOD": 50,
     "atr_length": 4,
     "atr_multiple": 0.75,
     "is_confirm_macd": False,
@@ -170,6 +174,17 @@ def set_indicator(symbol, bars, config=indicator_config):
         # cal RSI
         df["RSI"] = ta.rsi(df['close'],config['RSI_PERIOD'])
 
+        # cal SMA
+        df['SMAhi'] = ta.sma(df['high'], config['SMA_PERIOD'])
+        df['SMAlo'] = ta.sma(df['low'], config['SMA_PERIOD'])
+        
+        # cal STO
+        stoch_k = f'STOCHk_{config["STO_K_PERIOD"]}_{config["STO_D_PERIOD"]}_{config["STO_SMOOTH_K"]}'
+        stoch_d = f'STOCHd_{config["STO_K_PERIOD"]}_{config["STO_D_PERIOD"]}_{config["STO_SMOOTH_K"]}'
+        stoch = ta.stoch(df['high'], df['low'], df['close'], k=config["STO_K_PERIOD"], d=config["STO_D_PERIOD"], smooth_k=config["STO_SMOOTH_K"])
+        df['STOCHk'] = stoch[stoch_k]
+        df['STOCHd'] = stoch[stoch_d]
+
     except Exception as ex:
         print(type(ex).__name__, symbol, str(ex))
         logger.exception('set_indicator')
@@ -234,6 +249,32 @@ def get_signal(symbol, idx, config=indicator_config):
         is_short = True
 
     return is_long, is_short, buy_signal, sell_signal
+
+def get_fongbeer_signal(symbol, idx, sto_enter_long, sto_enter_short, config=indicator_config):
+    df = all_candles[symbol]
+
+    prev_idx = idx - 1
+    curr_idx = idx
+    (prev_k, sto_k) = (df['STOCHk'][prev_idx], df['STOCHk'][curr_idx])
+    (prev_d, sto_d) = (df['STOCHd'][prev_idx], df['STOCHd'][curr_idx])
+    close = df['close'][curr_idx]
+    open = df['open'][curr_idx]
+    sma_lo = df['SMAlo'][curr_idx]
+    sma_hi = df['SMAhi'][curr_idx]
+    crossover = prev_k < prev_d and sto_k > sto_d
+    crossunder = prev_k > prev_d and sto_k < sto_d
+
+    # signal condition
+    is_long = crossover and sto_d <= sto_enter_long and close < sma_lo and open < sma_lo
+    is_short = crossunder and sto_d >= sto_enter_short and close > sma_hi and open > sma_hi
+
+    signal = "WAIT"
+    if is_long:
+        signal = "BUY"
+    elif is_short:
+        signal = "SELL"
+
+    return is_long, is_short, signal, sto_k, sto_d
 
 async def chart(symbol, timeframe, config=indicator_config, showMACDRSI=False, fiboData=None):
     filename = f"./plots/order_{str(symbol).lower()}.png"

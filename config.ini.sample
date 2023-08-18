@@ -9,6 +9,7 @@ tdv_market = OANDA
 
 [line]
 notify_token = 
+chart_mode = off
 
 [app_config]
 ;# สามารถข้ามส่วนนี้ไปได้ โดยใช้ค่าที่กำหนดให้ได้เลย
@@ -30,7 +31,13 @@ timeframe = 1m
 signal_index = -1
 magic_number = 999222
 
-trade_limit = 3
+init_balance = 1330
+save_balance = on
+
+; trade_limit = 3
+buy_limit = 3
+sell_limit = 3
+rw_limit = 1
 single_position = off
 
 lot = 0.01
@@ -45,6 +52,10 @@ atr_length = 4
 atr_multiple = 0.75
 ;confirm_macd = off
 ;macd_cross = on
+
+sto_enter_long = 20
+sto_enter_short = 80
+sto_step_factor = 10
 
 martingale_mode = off
 martingale_factor = 1.0
