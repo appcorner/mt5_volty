@@ -780,8 +780,8 @@ def save_balance(symbols_list, account_info_dict):
                 if len(symbol_positions) == 0:
                     logger.info(f"save_balance:: no positions")
                     return            
-                # for index, position in symbol_positions.iterrows():
-                #     close_position(position)
+                for index, position in symbol_positions.iterrows():
+                    close_position(position)
                 notify.Send_Text(f"Balance : {init_balance-profit}\nProfit : {profit}\nNew Balance : {init_balance}")
     pass
 
