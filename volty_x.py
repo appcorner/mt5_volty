@@ -664,7 +664,7 @@ async def trade(base_symbol):
                 buy_count[base_symbol] += 1
                 # calculate fibo
                 price_buy = mt5.symbol_info_tick(symbol).ask
-                cal_lot = cal_martingal_lot(base_symbol, buy_count[base_symbol] + 1 == config.sell_limit)
+                cal_lot = cal_martingal_lot(base_symbol, buy_count[base_symbol] == config.sell_limit)
                 fibo_data = cal_tpsl(base_symbol, stupid_share.Direction.LONG, price_buy)
                 position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[base_symbol]["last_loss"])
                 if position_id > 0:
@@ -703,7 +703,7 @@ async def trade(base_symbol):
                 sell_count[base_symbol] += 1
                 # calculate fibo
                 price_sell = mt5.symbol_info_tick(symbol).bid
-                cal_lot = cal_martingal_lot(base_symbol, sell_count[base_symbol] + 1 == config.sell_limit)
+                cal_lot = cal_martingal_lot(base_symbol, sell_count[base_symbol] == config.sell_limit)
                 fibo_data = cal_tpsl(base_symbol, stupid_share.Direction.SHORT, price_sell)
                 position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[base_symbol]["last_loss"])
                 if position_id > 0:
