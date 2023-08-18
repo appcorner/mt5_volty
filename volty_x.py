@@ -160,18 +160,18 @@ def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_nu
         request["comment"] = "{}#RW-{}".format(bot_prefix,step)
     if tp > 0:
         request["tp"] = tp
-    logger.info(f"{symbol} trade_buy :: request = {request}")
+    logger.info(f"{base_symbol} trade_buy :: request = {request}")
     # send a trading request
     result = mt5.order_send(request)
     position_id_buy = 0
     if result.retcode != mt5.TRADE_RETCODE_DONE:
-        logger.info(f"{symbol} trade_buy :: order_send failed, retcode = {result.retcode}")
-        logger.debug(f"{symbol} trade_buy :: result = {result}")
+        logger.info(f"{base_symbol} trade_buy :: order_send failed, retcode = {result.retcode}")
+        logger.debug(f"{base_symbol} trade_buy :: result = {result}")
     else:
-        logger.info(f"{symbol} trade_buy :: order = {result.order}")
+        logger.info(f"{base_symbol} trade_buy :: order = {result.order}")
         t_req = result.request
-        logger.debug(f"{symbol} trade_buy :: result.request = {t_req}")
-        notify.Send_Text(f"{symbol}\nTrade Buy\nPrice = {t_req.price}\nLot = {t_req.volume}\nTP = {t_req.tp}\nSL = {t_req.sl}", True)
+        logger.debug(f"{base_symbol} trade_buy :: result.request = {t_req}")
+        notify.Send_Text(f"{base_symbol}\nTrade Buy\nPrice = {t_req.price}\nLot = {t_req.volume}\nTP = {t_req.tp}\nSL = {t_req.sl}", True)
         position_id_buy = result.order
     return position_id_buy
 
@@ -200,13 +200,13 @@ def close_buy(base_symbol, position_id, lot, price_open):
     result = mt5.order_send(request)
     position_id_close_buy = 0
     if result.retcode != mt5.TRADE_RETCODE_DONE:
-        logger.info(f"{symbol} close_buy :: order_send failed, retcode = {result.retcode}")
-        logger.debug(f"{symbol} close_buy :: result = {result}")
+        logger.info(f"{base_symbol} close_buy :: order_send failed, retcode = {result.retcode}")
+        logger.debug(f"{base_symbol} close_buy :: result = {result}")
     else:
-        logger.info(f"{symbol} close_buy :: order = {result.order}")
+        logger.info(f"{base_symbol} close_buy :: order = {result.order}")
         t_req = result.request
-        logger.debug(f"{symbol} close_buy :: result.request = {t_req}")
-        notify.Send_Text(f"{symbol}\nTrade Close Buy\nPrice = {t_req.price}\nProfit = {profit:.2f}", True)
+        logger.debug(f"{base_symbol} close_buy :: result.request = {t_req}")
+        notify.Send_Text(f"{base_symbol}\nTrade Close Buy\nPrice = {t_req.price}\nProfit = {profit:.2f}", True)
         position_id_close_buy = result.order
     return position_id_close_buy
 
@@ -237,18 +237,18 @@ def trade_sell(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_n
         request["comment"] = "{}#RW-{}".format(bot_prefix,step)
     if tp > 0:
         request["tp"] = tp
-    logger.info(f"{symbol} trade_sell :: request = {request}")
+    logger.info(f"{base_symbol} trade_sell :: request = {request}")
     # send a trading request
     result = mt5.order_send(request)
     position_id_sell = 0
     if result.retcode != mt5.TRADE_RETCODE_DONE:
-        logger.info(f"{symbol} trade_sell :: order_send failed, retcode = {result.retcode}")
-        logger.debug(f"{symbol} trade_sell :: result = {result}")
+        logger.info(f"{base_symbol} trade_sell :: order_send failed, retcode = {result.retcode}")
+        logger.debug(f"{base_symbol} trade_sell :: result = {result}")
     else:
-        logger.info(f"{symbol} trade_sell :: order = {result.order}")
+        logger.info(f"{base_symbol} trade_sell :: order = {result.order}")
         t_req = result.request
-        logger.debug(f"{symbol} trade_sell :: result.request = {t_req}")
-        notify.Send_Text(f"{symbol}\nTrade Sell\nPrice = {t_req.price}\nLot = {t_req.volume}\nTP = {t_req.tp}\nSL = {t_req.sl}", True)
+        logger.debug(f"{base_symbol} trade_sell :: result.request = {t_req}")
+        notify.Send_Text(f"{base_symbol}\nTrade Sell\nPrice = {t_req.price}\nLot = {t_req.volume}\nTP = {t_req.tp}\nSL = {t_req.sl}", True)
         position_id_sell = result.order
     return position_id_sell  
 
@@ -277,13 +277,13 @@ def close_sell(base_symbol, position_id, lot, price_open):
     result = mt5.order_send(request)
     position_id_close_sell = 0
     if result.retcode != mt5.TRADE_RETCODE_DONE:
-        logger.info(f"{symbol} close_sell :: order_send failed, retcode = {result.retcode}")
-        logger.debug(f"{symbol} close_sell :: result = {result}")
+        logger.info(f"{base_symbol} close_sell :: order_send failed, retcode = {result.retcode}")
+        logger.debug(f"{base_symbol} close_sell :: result = {result}")
     else:
-        logger.info(f"{symbol} close_sell :: order = {result.order}")
+        logger.info(f"{base_symbol} close_sell :: order = {result.order}")
         t_req = result.request
-        logger.debug(f"{symbol} close_sell :: result.request = {t_req}")
-        notify.Send_Text(f"{symbol}\nTrade Close Sell\nPrice = {t_req.price}\nProfit = {profit:0.2f}", True)
+        logger.debug(f"{base_symbol} close_sell :: result.request = {t_req}")
+        notify.Send_Text(f"{base_symbol}\nTrade Close Sell\nPrice = {t_req.price}\nProfit = {profit:0.2f}", True)
         position_id_close_sell = result.order
     return position_id_close_sell
 
@@ -592,6 +592,22 @@ async def trade(base_symbol):
             print(msg)
             return
         
+        # count position
+        all_positions = positions_get(base_symbol)
+        trade_count[base_symbol] = 0
+        buy_count[base_symbol] = 0
+        sell_count[base_symbol] = 0
+        rw_count[base_symbol] = 0
+        for index, position in all_positions.iterrows():
+            if position["symbol"] == base_symbol and position["magic"] == magic_number:
+                trade_count[base_symbol] += 1
+                if position["type"] == ORDER_TYPE[1]:
+                    sell_count[base_symbol] += 1
+                elif position["type"] == ORDER_TYPE[0]:
+                    buy_count[base_symbol] += 1
+            elif position["symbol"] == base_symbol and position["comment"].startswith(f"{bot_prefix}#RW"):
+                rw_count[base_symbol] += 1
+
         price_buy = symbol_tick.ask
         price_sell = symbol_tick.bid
         mid_price = (price_buy + price_sell) / 2
@@ -618,18 +634,13 @@ async def trade(base_symbol):
             is_short = price_sell < sell_signal and last_signal != -1
         fibo_data = None
         position_id = 0
-        trade_count[base_symbol] = 0
-        rw_count[base_symbol] = 0
         msg = ""
         if is_long:
             # check old position
             all_positions = positions_get(base_symbol)
             has_long_position = False
-            buy_count[base_symbol] = 0
-            sell_count[base_symbol] = 0
             for index, position in all_positions.iterrows():
                 if position["symbol"] == base_symbol and position["magic"] == magic_number:
-                    trade_count[base_symbol] += 1
                     if position["type"] == ORDER_TYPE[1]:
                         if config.is_single_position:
                             logger.debug(f"[{base_symbol}] close sell position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
@@ -645,15 +656,12 @@ async def trade(base_symbol):
                                 all_stat[base_symbol]["last_loss"] += 1
                                 # all_stat[symbol]["martingale_profit"] += position['profit']
                             notify.Send_Text(f'{base_symbol}\nWin:Loss = {all_stat[base_symbol]["win"]}:{all_stat[base_symbol]["loss"]}\nPNL = {all_stat[base_symbol]["summary_profit"]:0.2f}', True)
-                        else:
-                            sell_count[base_symbol] += 1
                     elif position["type"] == ORDER_TYPE[0]:
-                        buy_count[base_symbol] += 1
                         all_signals[base_symbol] = 1
                         has_long_position = True
-                elif position["symbol"] == base_symbol and position["comment"].startswith(f"{bot_prefix}#RW"):
-                    rw_count[base_symbol] += 1
+
             if buy_count[base_symbol] < config.buy_limit and (not config.is_single_position or not has_long_position):
+                buy_count[base_symbol] += 1
                 # calculate fibo
                 price_buy = mt5.symbol_info_tick(symbol).ask
                 cal_lot = cal_martingal_lot(base_symbol, buy_count[base_symbol] + 1 == config.sell_limit)
@@ -670,11 +678,8 @@ async def trade(base_symbol):
             # check old position
             all_positions = positions_get(base_symbol)
             has_short_position = False
-            buy_count[base_symbol] = 0
-            sell_count[base_symbol] = 0
             for index, position in all_positions.iterrows():
                 if position["symbol"] == base_symbol and position["magic"] == magic_number:
-                    trade_count[base_symbol] += 1
                     if position["type"] == ORDER_TYPE[0]:
                         if config.is_single_position:
                             logger.debug(f"[{base_symbol}] close buy position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
@@ -690,16 +695,12 @@ async def trade(base_symbol):
                                 all_stat[base_symbol]["last_loss"] += 1
                                 # all_stat[symbol]["martingale_profit"] += position['profit']
                             notify.Send_Text(f'{base_symbol}\nWin:Loss = {all_stat[base_symbol]["win"]}:{all_stat[base_symbol]["loss"]}\nPNL = {all_stat[base_symbol]["summary_profit"]:0.2f}', True)
-                        else:
-                            buy_count[base_symbol] += 1
                     elif position["type"] == ORDER_TYPE[1]:
-                        sell_count[base_symbol] += 1
                         all_signals[base_symbol] = -1
                         has_short_position = True
-                elif position["symbol"] == base_symbol and position["comment"].startswith(f"{bot_prefix}#RW"):
-                    rw_count[base_symbol] += 1
 
             if sell_count[base_symbol] < config.sell_limit and (not config.is_single_position or not has_short_position):
+                sell_count[base_symbol] += 1
                 # calculate fibo
                 price_sell = mt5.symbol_info_tick(symbol).bid
                 cal_lot = cal_martingal_lot(base_symbol, sell_count[base_symbol] + 1 == config.sell_limit)
@@ -713,31 +714,34 @@ async def trade(base_symbol):
             # elif sell_count[base_symbol] >= config.sell_limit:
             #     price_sell = mt5.symbol_info_tick(symbol).bid
 
+        rw_position_id = 0
         if rw_count[base_symbol] < config.rw_limit and (buy_count[base_symbol] + sell_count[base_symbol]) >= (config.buy_limit + config.sell_limit):
-            logger.debug(f"[{base_symbol}] buy_count: {buy_count[base_symbol]}, sell_count: {sell_count[base_symbol]}, rw_count: {rw_count[base_symbol]}")
             (is_rwlong, is_rwshort, signal, sto_k, sto_d) = stupid_volty_mt5.get_fongbeer_signal(base_symbol, config.signal_index, config.sto_enter_long, config.sto_enter_short)
             if is_rwlong:
+                logger.debug(f"[{base_symbol}] sto rw signal {signal} :: @{price_sell} :: STOCHk={sto_k}, STOCHd={sto_d}, signal={signal}")
                 price_buy = mt5.symbol_info_tick(symbol).ask
                 rw_count[base_symbol] += 1
-                rw_step = sto_k % config.sto_step_factor
+                rw_step = 1 + int((config.sto_enter_long - sto_k) // config.sto_step_factor)
                 cal_lot = config.lot * rw_step
                 rw_position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=0, sl=0, magic_number=0, step=rw_step)
+                symbols_trade[base_symbol] = False
                 msg = f"rw ticker: {rw_position_id}"
                 print(msg)
-                logger.debug(f"[{base_symbol}] sto rw signal :: @{price_buy} :: STOCHk={sto_k}, STOCHd={sto_d}, signal={signal}")
             elif is_rwshort:
+                logger.debug(f"[{base_symbol}] sto rw signal {signal} :: @{price_sell} :: STOCHk={sto_k}, STOCHd={sto_d}, signal={signal}")
                 price_sell = mt5.symbol_info_tick(symbol).bid
                 rw_count[base_symbol] += 1
-                rw_step = sto_k % config.sto_step_factor
+                rw_step = 1 + int((sto_k - config.sto_enter_short) // config.sto_step_factor)
                 cal_lot = config.lot * rw_step
                 rw_position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=0, sl=0, magic_number=0, step=rw_step)
+                symbols_trade[base_symbol] = False
                 msg = f"rw ticker: {rw_position_id}"
                 print(msg)
-                logger.debug(f"[{base_symbol}] sto rw signal :: @{price_sell} :: STOCHk={sto_k}, STOCHd={sto_d}, signal={signal}")
 
-        if position_id > 0:
+        if position_id > 0 or rw_position_id > 0:
             print(f"\r[{base_symbol}] Buy Signal : {buy_signal:5.2f}, Sell_Signal : {sell_signal:5.2f}")
             print(f"\r[{base_symbol}] Ask Price  : {price_buy:5.2f}, Bid Price   : {price_sell:5.2f}")
+            logger.debug(f"[{base_symbol}] buy_count: {buy_count[base_symbol]}, sell_count: {sell_count[base_symbol]}, rw_count: {rw_count[base_symbol]}")
             logger.info(f'{base_symbol} :: is_long={is_long}, is_short={is_short}, buy_signal={buy_signal}, sell_signal={sell_signal}, price_buy={price_buy}, price_sell={price_sell}')
 
             if config.is_chart_mode:
