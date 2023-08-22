@@ -36,7 +36,7 @@ class TPLS(object):
 
 bot_name = 'Volty'
 bot_prefix = 'VT'
-bot_vesion = '1.4.0'
+bot_vesion = '1.4.3'
 
 bot_fullname = f'MT5 {bot_name} version {bot_vesion}'
 
@@ -171,7 +171,13 @@ def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_nu
         logger.info(f"{base_symbol} trade_buy :: order = {result.order}")
         t_req = result.request
         logger.debug(f"{base_symbol} trade_buy :: result.request = {t_req}")
-        notify.Send_Text(f"{base_symbol}\nTrade Buy\nPrice = {t_req.price}\nLot = {t_req.volume}\nTP = {t_req.tp}\nSL = {t_req.sl}", True)
+        tp_txt = ""
+        sl_txt = ""
+        if t_req.tp > 0:
+            tp_txt = f"\nTP = {t_req.tp}"
+        if t_req.sl > 0:
+            sl_txt = f"\nSL = {t_req.sl}"
+        notify.Send_Text(f"{base_symbol}\nTrade Buy\nPrice = {t_req.price}\nLot = {t_req.volume}{tp_txt}{sl_txt}", True)
         position_id_buy = result.order
     return position_id_buy
 
@@ -206,7 +212,7 @@ def close_buy(base_symbol, position_id, lot, price_open):
         logger.info(f"{base_symbol} close_buy :: order = {result.order}")
         t_req = result.request
         logger.debug(f"{base_symbol} close_buy :: result.request = {t_req}")
-        notify.Send_Text(f"{base_symbol}\nTrade Close Buy\nPrice = {t_req.price}\nProfit = {profit:.2f}", True)
+        notify.Send_Text(f"{base_symbol}\nTrade Close Buy\n#{position_id}\nPrice = {t_req.price}\nProfit = {profit:.2f}", True)
         position_id_close_buy = result.order
     return position_id_close_buy
 
@@ -248,7 +254,13 @@ def trade_sell(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_n
         logger.info(f"{base_symbol} trade_sell :: order = {result.order}")
         t_req = result.request
         logger.debug(f"{base_symbol} trade_sell :: result.request = {t_req}")
-        notify.Send_Text(f"{base_symbol}\nTrade Sell\nPrice = {t_req.price}\nLot = {t_req.volume}\nTP = {t_req.tp}\nSL = {t_req.sl}", True)
+        tp_txt = ""
+        sl_txt = ""
+        if t_req.tp > 0:
+            tp_txt = f"\nTP = {t_req.tp}"
+        if t_req.sl > 0:
+            sl_txt = f"\nSL = {t_req.sl}"
+        notify.Send_Text(f"{base_symbol}\nTrade Sell\nPrice = {t_req.price}\nLot = {t_req.volume}{tp_txt}{sl_txt}", True)
         position_id_sell = result.order
     return position_id_sell  
 
@@ -283,7 +295,7 @@ def close_sell(base_symbol, position_id, lot, price_open):
         logger.info(f"{base_symbol} close_sell :: order = {result.order}")
         t_req = result.request
         logger.debug(f"{base_symbol} close_sell :: result.request = {t_req}")
-        notify.Send_Text(f"{base_symbol}\nTrade Close Sell\nPrice = {t_req.price}\nProfit = {profit:0.2f}", True)
+        notify.Send_Text(f"{base_symbol}\nTrade Close Sell\n#{position_id}\nPrice = {t_req.price}\nProfit = {profit:0.2f}", True)
         position_id_close_sell = result.order
     return position_id_close_sell
 
@@ -395,7 +407,7 @@ def show_bid_ask(base_symbol):
     bid_price = symbol_tick.bid
     print(f"\r[{symbol}] Ask Price: {ask_price}, Bid Price: {bid_price}")
 
-def positions_check(positions, old_position_ids):
+def positions_check(positions, old_position_ids, account_info_dict):
     if len(positions) == 0:
         return
     current_position_ids = positions["ticket"].tolist()
@@ -433,7 +445,8 @@ def positions_check(positions, old_position_ids):
                 all_stat[base_symbol]["loss"] += 1
                 all_stat[base_symbol]["last_loss"] += 1
             if close_by != '':
-                notify.Send_Text(f"{base_symbol}\nTrade {close_by}\nPrice = {price_current}\nProfit = {profit:.2f}", True)
+                notify.Send_Text(f"{base_symbol}\nTrade {close_by}\n#{position_id}\nPrice = {price_current}\nProfit = {profit:.2f}", True)
+                notify.Send_Text(f"\nBalance = {account_info_dict['balance']}\nEquity = {account_info_dict['equity']}", True)
                 notify.Send_Text(f'\nWin:Loss = {all_stat[base_symbol]["win"]}:{all_stat[base_symbol]["loss"]}\nPNL = {all_stat[base_symbol]["summary_profit"]:0.2f}')
 
 def positions_report(positions):
@@ -567,7 +580,7 @@ def cal_tpsl(base_symbol, direction:stupid_share.Direction, price_target):
     return fibo_data
 
 async def update_trade(base_symbol, next_ticker):
-    tf = symbols_tf[base_symbol]
+    # tf = symbols_tf[base_symbol]
     await update_ohlcv(base_symbol, next_ticker)
     await trade(base_symbol)
 
@@ -598,13 +611,23 @@ async def trade(base_symbol):
         buy_count[base_symbol] = 0
         sell_count[base_symbol] = 0
         rw_count[base_symbol] = 0
+        min_sell_profit = 0
+        min_sell_position = None
+        min_buy_profit = 0
+        min_buy_position = None
         for index, position in all_positions.iterrows():
             if position["symbol"] == base_symbol and position["magic"] == magic_number:
                 trade_count[base_symbol] += 1
                 if position["type"] == ORDER_TYPE[1]:
                     sell_count[base_symbol] += 1
+                    if min_sell_profit == 0 or position["profit"] < min_sell_profit:
+                        min_sell_profit = position["profit"]
+                        min_sell_position = position
                 elif position["type"] == ORDER_TYPE[0]:
                     buy_count[base_symbol] += 1
+                    if min_buy_profit == 0 or position["profit"] < min_buy_profit:
+                        min_buy_profit = position["profit"]
+                        min_buy_position = position
             elif position["symbol"] == base_symbol and position["comment"].startswith(f"{bot_prefix}#RW"):
                 rw_count[base_symbol] += 1
 
@@ -715,7 +738,7 @@ async def trade(base_symbol):
             #     price_sell = mt5.symbol_info_tick(symbol).bid
 
         rw_position_id = 0
-        if rw_count[base_symbol] < config.rw_limit and (buy_count[base_symbol] + sell_count[base_symbol]) >= (config.buy_limit + config.sell_limit):
+        if rw_count[base_symbol] < config.rw_limit and (config.is_storm_helper_mode or (buy_count[base_symbol] + sell_count[base_symbol]) >= (config.buy_limit + config.sell_limit)):
             (is_rwlong, is_rwshort, signal, sto_k, sto_d) = stupid_volty_mt5.get_fongbeer_signal(base_symbol, config.signal_index, config.sto_enter_long, config.sto_enter_short)
             if is_rwlong:
                 logger.debug(f"[{base_symbol}] sto rw signal {signal} :: @{price_sell} :: STOCHk={sto_k}, STOCHd={sto_d}, signal={signal}")
@@ -737,7 +760,10 @@ async def trade(base_symbol):
                 symbols_trade[base_symbol] = False
                 msg = f"rw ticker: {rw_position_id}"
                 print(msg)
-
+                # if config.is_storm_helper_mode and min_profit < 0:
+                #     modify_position(base_symbol, min_profit, min_profit, magic_number)
+                #     pass
+                
         if position_id > 0 or rw_position_id > 0:
             print(f"\r[{base_symbol}] Buy Signal : {buy_signal:5.2f}, Sell_Signal : {sell_signal:5.2f}")
             print(f"\r[{base_symbol}] Ask Price  : {price_buy:5.2f}, Bid Price   : {price_sell:5.2f}")
@@ -771,14 +797,15 @@ async def init_symbol_ohlcv(base_symbol):
 
     logger.debug(f'{base_symbol}::\n{stupid_volty_mt5.all_candles[base_symbol].tail(3)}')
 
-def save_balance(symbols_list, account_info_dict):
+def save_balance(symbols_list):
     global init_balance
-    if config.is_save_balance:
+    if config.is_save_balance_mode:
+        account_info_dict = mt5.account_info()._asdict()
         balance = account_info_dict['balance']
         equity = account_info_dict['equity']
-        profit = (balance - init_balance) / 2
-        if profit > 0 and equity >= (init_balance + profit) and balance > equity:
-            init_balance = init_balance + profit
+        balance_profit = init_balance * config.balance_profit_percent / 100.0
+        if balance_profit > 0 and equity >= (init_balance + balance_profit) and balance > equity:
+            init_balance = init_balance + balance_profit
             for base_symbol in symbols_list:
                 symbol_positions = positions_get(base_symbol)
                 if len(symbol_positions) == 0:
@@ -786,7 +813,7 @@ def save_balance(symbols_list, account_info_dict):
                     return            
                 for index, position in symbol_positions.iterrows():
                     close_position(position)
-                notify.Send_Text(f"Balance : {init_balance-profit}\nProfit : {profit}\nNew Balance : {init_balance}")
+                notify.Send_Text(f"Old Balance : {init_balance-balance_profit}\nProfit : {balance_profit}\nNew Balance : {init_balance}")
     pass
 
 async def main():
@@ -934,14 +961,12 @@ async def main():
             next_update += time_update
 
             print(CLS_SCREEN+f"{bot_fullname}\nBot start process {local_time}")
-            print(f"Init Balance = {init_balance}, Lot = {config.lot}, Buy/Sell Limit = {config.buy_limit}x{config.sell_limit}, ATR = {config.atr_length}:{config.atr_multiple}, Martingale = {'on' if config.is_martingale else 'off'}")
-            
-            account_info_dict = mt5.account_info()._asdict()
-            print(f"Balance = {account_info_dict['balance']}, Equity = {account_info_dict['equity']}, Free Margin = {account_info_dict['margin_free']}, Margin Level = {account_info_dict['margin_level']:0.2f}%")
-
+            print(f"Lot = {config.lot}, Buy/Sell Limit = {config.buy_limit}x{config.sell_limit}, ATR = {config.atr_length}:{config.atr_multiple}, Martingale = {'on' if config.is_martingale else 'off'}")
+            balance_profit = round(init_balance * config.balance_profit_percent / 100.0, 2)         
+            print(f"Init Balance = {init_balance}, Target = {init_balance+balance_profit}, Profit ({config.balance_profit_percent:.2f}%) = {balance_profit}")
             close_by_profit(symbols_list)
 
-            save_balance(symbols_list, account_info_dict)
+            save_balance(symbols_list)
 
             # prepare old position ids
             old_position_ids = []
@@ -957,9 +982,12 @@ async def main():
             #     for index, position in all_positions.iterrows():
             #         if position["symbol"] in symbols_list and position["magic"] == magic_number and '-' in position["comment"]:
             #             update_trailing_stop(position)
+            
+            account_info_dict = mt5.account_info()._asdict()
+            print(f"Balance = {account_info_dict['balance']}, Equity = {account_info_dict['equity']}, Free Margin = {account_info_dict['margin_free']}, Margin Level = {account_info_dict['margin_level']:0.2f}%")
 
             # check all close positions
-            positions_check(all_positions, old_position_ids)
+            positions_check(all_positions, old_position_ids, account_info_dict)
 
             positions_report(all_positions)
 

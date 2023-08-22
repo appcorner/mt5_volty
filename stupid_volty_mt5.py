@@ -219,8 +219,8 @@ async def fetch_ohlcv(exchange, symbol, timeframe, limit=CANDLE_LIMIT, timestamp
             ohlcv_bars = tv.get_hist(symbol,config['tdv_market'],TIMEFRAME_TDV[timeframe],limit)
         else:
             ohlcv_bars  = mt5.copy_rates_from_pos(f"{symbol}{symbol_suffix}", TIMEFRAME_MT5[timeframe], 0, limit)
-        logger.info(f"{symbol} fetch_ohlcv, limit:{limit}, len:{len(ohlcv_bars)}")
-        if len(ohlcv_bars):
+        if ohlcv_bars is not None and len(ohlcv_bars):
+            logger.info(f"{symbol} fetch_ohlcv, limit:{limit}, len:{len(ohlcv_bars)}")
             all_candles[symbol] = set_indicator(symbol, ohlcv_bars, config=config)
     except Exception as ex:
         print(type(ex).__name__, symbol, str(ex))

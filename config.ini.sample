@@ -3,7 +3,7 @@ login =
 password = 
 server = VTMarkets-Live
 ; path = D:\mt5_terminal\FBS_02\terminal64.exe
-; symbol_suffix = -VIP
+symbol_suffix = -VIP
 tdv_ohlcv = off
 tdv_market = OANDA
 
@@ -31,32 +31,40 @@ timeframe = 1m
 signal_index = -1
 magic_number = 999222
 
-init_balance = 1330
-save_balance = on
-
-; trade_limit = 3
-buy_limit = 3
-sell_limit = 3
-rw_limit = 1
-single_position = off
-
+;# lot สำหรับการเปิด orders ใหม่
 lot = 0.01
 deviation = 20
-;# ใช้ค่ากลางระหว่าง bid ask ในการตรวจสัญญาน
-;use_midprice = on
-;# ตัวคูณค่าสเปรดสำหรับการเปิดสัญญาน
-spread_factor = 2
-validate_spread = off
 
+;# indicator setting
 atr_length = 4
 atr_multiple = 0.75
-;confirm_macd = off
-;macd_cross = on
 
+
+;# การคำนวณรวบ orders เพื่อป้องกันการเกิด DD
+;# เปิด/ปิด การใช้งาน
+save_balance_mode = on
+;# กำหนดค่าเริ่มต้นของ init_balance ให้เป็นค่าเงินที่มีอยู่ใน account ในขณะที่เปิด EA ครั้งแรก
+init_balance = 1330
+;# กำหนดค่าเปอร์เซ็นต์ของผลกำไรที่ต้องการ
+balance_profit_percent = 0.25
+
+
+;# จำนวน orders ฝั่ง buy/sell สูงสุด
+buy_limit = 3
+sell_limit = 3
+;# กำหนดวิธีการเปิด orders ใหม่ เป็น on/off, off=เปิดใหม่ทุกครั้ง, no=ปิด orders เก่า แล้วเปิดใหม่
+single_position = off
+
+;# กำหนดจำนวน recovery orders ที่จะเปิดใหม่ให้ น้องพายุ หรือ ea recovery อื่นๆ
+rw_limit = 2
+;# ระดับสัญญาน stoch สำหรับเปิด recovery orders ใหม่
 sto_enter_long = 20
 sto_enter_short = 80
+;# ตัววัดระดับสัญญาน ถ้าเกินจาก step จะคูณ lot ตามขั้นระดับ ต.ย. sto_k > 90 (80+sto_step_factor) จะคูณ lot 2 เท่า
 sto_step_factor = 10
 
+
+;# เปิด/ปิด การใช้งาน martingale
 martingale_mode = off
 martingale_factor = 1.0
 martingale_max = 16
@@ -66,21 +74,21 @@ martingale_max = 16
 
 auto_tpsl = off
 
-;# กำหนดค่าตาม symbols
+;# กำหนดค่า pip ตาม symbols
 ; buy_sl = 250,90
 ; buy_tp = 500,180
 ; sell_sl = 250,90
 ; sell_tp = 500,180
 buy_sl = 0
-buy_tp = 15
+buy_tp = 11
 sell_sl = 0
-sell_tp = 15
+sell_tp = 10
+
+;# กำหนดค่า tp amount ตาม symbols หน่วยเป็น USD เท่านั้น
+tp_amount = 0.5
 
 ;# สามารถกำหนดค่าเป็นเปอร์เซ็นต์ได้
 ; buy_sl = 0.25%,0.25%
 ; buy_tp = 0.75%,0.75%
 ; sell_sl = 0.25%,0.25%
 ; sell_tp = 0.75%,0.75%
-
-; trailing_profit = on
-; trailing_stop = on

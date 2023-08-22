@@ -112,13 +112,17 @@ signal_index = get_int('setting', 'signal_index', -2)
 magic_number = get_int('setting', 'magic_number', '999111')
 
 init_balance = get_float('setting', 'init_balance', 0.0)
-is_save_balance = get_str('setting', 'save_balance', 'off') == 'on'
+is_save_balance_mode = get_str('setting', 'save_balance_mode', 'off') == 'on'
+balance_profit_percent = get_float('setting', 'balance_profit_percent', 5.0)
+dd_alert_percent = get_float('setting', 'dd_alert_percent', 50.0)
 
 trade_limit = get_int('setting', 'trade_limit', 1)
 buy_limit = get_int('setting', 'buy_limit', 1)
 sell_limit = get_int('setting', 'sell_limit', 1)
-rw_limit = get_int('setting', 'rw_limit', 1)
 is_single_position = get_str('setting', 'single_position', 'off') == 'on'
+
+rw_limit = get_int('setting', 'rw_limit', 1)
+is_storm_helper_mode = get_str('setting', 'storm_helper_mode', 'off') == 'on'
 
 # symbol = get_str('setting', 'symbol', 'XAUUSD')
 symbols = get_list('setting', 'symbols', ['XAUUSD'])
