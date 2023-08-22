@@ -26,6 +26,18 @@ def get_list_float(group, name, default=[]):
         print(type(ex).__name__, str(ex))
         print(f'config {group}.{name} not found, set default to {default}')
     return value
+
+def get_list_int(group, name, default=[]):
+    value = default
+    try:
+        if is_exist(group, name):
+            value = [int(x.strip()) for x in config[group][name].split(',')]
+        else:
+            print(f'config {group}.{name} not found, set default to {default}')
+    except Exception as ex:
+        print(type(ex).__name__, str(ex))
+        print(f'config {group}.{name} not found, set default to {default}')
+    return value
     
 def get_str(group, name, default=''):
     value = default
@@ -119,9 +131,12 @@ dd_alert_percent = get_float('setting', 'dd_alert_percent', 50.0)
 trade_limit = get_int('setting', 'trade_limit', 1)
 buy_limit = get_int('setting', 'buy_limit', 1)
 sell_limit = get_int('setting', 'sell_limit', 1)
+buy_space = get_int('setting', 'order_space', 100)
+sell_space = get_int('setting', 'order_space', 100)
 is_single_position = get_str('setting', 'single_position', 'off') == 'on'
 
 rw_limit = get_int('setting', 'rw_limit', 1)
+rw_magic_numbers = get_list_int('setting', 'rw_magic_number', [6689])
 is_storm_helper_mode = get_str('setting', 'storm_helper_mode', 'off') == 'on'
 
 # symbol = get_str('setting', 'symbol', 'XAUUSD')

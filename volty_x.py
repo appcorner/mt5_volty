@@ -36,7 +36,7 @@ class TPLS(object):
 
 bot_name = 'Volty'
 bot_prefix = 'VT'
-bot_vesion = '1.4.3'
+bot_vesion = '1.4.4'
 
 bot_fullname = f'MT5 {bot_name} version {bot_vesion}'
 
@@ -143,7 +143,7 @@ def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_nu
         "type": mt5.ORDER_TYPE_BUY,
         "price": price,
         "deviation": deviation,
-        # "magic": magic_number,
+        "magic": magic_number,
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_IOC,
     }
@@ -154,9 +154,7 @@ def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_nu
         request["comment"] = "{}-{}-{}".format(bot_prefix,sl_pips,step)
     else:
         request["comment"] = "{}-{}".format(bot_prefix,step)
-    if magic_number > 0:
-        request["magic"] = magic_number
-    else:
+    if magic_number != config.magic_number:
         request["comment"] = "{}#RW-{}".format(bot_prefix,step)
     if tp > 0:
         request["tp"] = tp
@@ -200,8 +198,8 @@ def close_buy(base_symbol, position_id, lot, price_open):
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_IOC,
     }
-    if magic_number > 0:
-        request["magic"] = magic_number
+    # if magic_number > 0:
+    #     request["magic"] = magic_number
     # send a trading request
     result = mt5.order_send(request)
     position_id_close_buy = 0
@@ -226,7 +224,7 @@ def trade_sell(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_n
         "type": mt5.ORDER_TYPE_SELL,
         "price": price,
         "deviation": deviation,
-        #"magic": magic_number,
+        "magic": magic_number,
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_IOC,
     }
@@ -237,9 +235,7 @@ def trade_sell(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_n
         request["comment"] = "{}-{}-{}".format(bot_prefix,sl_pips,step)
     else:
         request["comment"] = "{}-{}".format(bot_prefix,step)
-    if magic_number > 0:
-        request["magic"] = magic_number
-    else:
+    if magic_number != config.magic_number:
         request["comment"] = "{}#RW-{}".format(bot_prefix,step)
     if tp > 0:
         request["tp"] = tp
@@ -283,8 +279,8 @@ def close_sell(base_symbol, position_id, lot, price_open):
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_IOC,
     }
-    if magic_number > 0:
-        request["magic"] = magic_number
+    # if magic_number > 0:
+    #     request["magic"] = magic_number
     # send a trading request
     result = mt5.order_send(request)
     position_id_close_sell = 0
@@ -605,6 +601,10 @@ async def trade(base_symbol):
             print(msg)
             return
         
+        price_buy = symbol_tick.ask
+        price_sell = symbol_tick.bid
+        mid_price = (price_buy + price_sell) / 2
+        
         # count position
         all_positions = positions_get(base_symbol)
         trade_count[base_symbol] = 0
@@ -613,27 +613,33 @@ async def trade(base_symbol):
         rw_count[base_symbol] = 0
         min_sell_profit = 0
         min_sell_position = None
-        min_buy_profit = 0
-        min_buy_position = None
+        sell_space_pass = True
+        sell_space_price = config.sell_space * mt5.symbol_info(symbol).point
+        max_buy_profit = 0
+        max_buy_position = None
+        buy_space_pass = True
+        buy_space_price = config.buy_space * mt5.symbol_info(symbol).point
         for index, position in all_positions.iterrows():
             if position["symbol"] == base_symbol and position["magic"] == magic_number:
                 trade_count[base_symbol] += 1
-                if position["type"] == ORDER_TYPE[1]:
+                if position["type"] == ORDER_TYPE[1]: # sell
                     sell_count[base_symbol] += 1
                     if min_sell_profit == 0 or position["profit"] < min_sell_profit:
                         min_sell_profit = position["profit"]
                         min_sell_position = position
-                elif position["type"] == ORDER_TYPE[0]:
+                    if config.sell_space > 0 and abs(position["price_open"] - price_sell) < sell_space_price:
+                        # logger.debug(f"{base_symbol} trade :: sell_space = {config.sell_space} :: price space {abs(position['price_open'] - price_sell)} :: {sell_space_price}")
+                        sell_space_pass = False
+                elif position["type"] == ORDER_TYPE[0]: # 
                     buy_count[base_symbol] += 1
-                    if min_buy_profit == 0 or position["profit"] < min_buy_profit:
-                        min_buy_profit = position["profit"]
-                        min_buy_position = position
+                    if max_buy_profit == 0 or position["profit"] > max_buy_profit:
+                        max_buy_profit = position["profit"]
+                        max_buy_position = position
+                    if config.buy_space > 0 and abs(position["price_open"] - price_buy) < buy_space_price:
+                        # logger.debug(f"{base_symbol} trade :: buy_space = {config.buy_space} :: price space {abs(position['price_open'] - price_buy)} :: {buy_space_price}") 
+                        buy_space_pass = False
             elif position["symbol"] == base_symbol and position["comment"].startswith(f"{bot_prefix}#RW"):
                 rw_count[base_symbol] += 1
-
-        price_buy = symbol_tick.ask
-        price_sell = symbol_tick.bid
-        mid_price = (price_buy + price_sell) / 2
 
         last_signal = all_signals[base_symbol] if base_symbol in all_signals.keys() else 0
         is_long, is_short, buy_signal, sell_signal = stupid_volty_mt5.get_signal(base_symbol, config.signal_index)
@@ -658,7 +664,7 @@ async def trade(base_symbol):
         fibo_data = None
         position_id = 0
         msg = ""
-        if is_long:
+        if is_long and buy_space_pass:
             # check old position
             all_positions = positions_get(base_symbol)
             has_long_position = False
@@ -697,7 +703,7 @@ async def trade(base_symbol):
                 print(msg)
             # elif buy_count[base_symbol] >= config.buy_limit:
             #     price_buy = mt5.symbol_info_tick(symbol).ask
-        elif is_short:
+        elif is_short and sell_space_pass:
             # check old position
             all_positions = positions_get(base_symbol)
             has_short_position = False
@@ -740,13 +746,23 @@ async def trade(base_symbol):
         rw_position_id = 0
         if rw_count[base_symbol] < config.rw_limit and (config.is_storm_helper_mode or (buy_count[base_symbol] + sell_count[base_symbol]) >= (config.buy_limit + config.sell_limit)):
             (is_rwlong, is_rwshort, signal, sto_k, sto_d) = stupid_volty_mt5.get_fongbeer_signal(base_symbol, config.signal_index, config.sto_enter_long, config.sto_enter_short)
+
+            rw_magic_number = 0
+            if len(config.rw_magic_numbers) >= rw_count[base_symbol] + 1:
+                rw_magic_number = config.rw_magic_numbers[rw_count[base_symbol]]
+
             if is_rwlong:
                 logger.debug(f"[{base_symbol}] sto rw signal {signal} :: @{price_sell} :: STOCHk={sto_k}, STOCHd={sto_d}, signal={signal}")
                 price_buy = mt5.symbol_info_tick(symbol).ask
                 rw_count[base_symbol] += 1
                 rw_step = 1 + int((config.sto_enter_long - sto_k) // config.sto_step_factor)
                 cal_lot = config.lot * rw_step
-                rw_position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=0, sl=0, magic_number=0, step=rw_step)
+                if min_sell_position is not None:
+                    cal_lot = min_sell_position['volume'] * 2 * rw_step
+                    modify_position(base_symbol, min_sell_position['identifier'], 0, 0, rw_magic_number)
+                elif max_buy_position is not None:
+                    modify_position(base_symbol, max_buy_position['identifier'], 0, 0, rw_magic_number)
+                rw_position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=0, sl=0, magic_number=rw_magic_number, step=rw_step)
                 symbols_trade[base_symbol] = False
                 msg = f"rw ticker: {rw_position_id}"
                 print(msg)
@@ -756,7 +772,12 @@ async def trade(base_symbol):
                 rw_count[base_symbol] += 1
                 rw_step = 1 + int((sto_k - config.sto_enter_short) // config.sto_step_factor)
                 cal_lot = config.lot * rw_step
-                rw_position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=0, sl=0, magic_number=0, step=rw_step)
+                if max_buy_position is not None:
+                    cal_lot = max_buy_position['volume'] * 2 * rw_step
+                    modify_position(base_symbol, max_buy_position['identifier'], 0, 0, rw_magic_number)
+                elif min_sell_position is not None:
+                    modify_position(base_symbol, min_sell_position['identifier'], 0, 0, rw_magic_number)
+                rw_position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=0, sl=0, magic_number=rw_magic_number, step=rw_step)
                 symbols_trade[base_symbol] = False
                 msg = f"rw ticker: {rw_position_id}"
                 print(msg)

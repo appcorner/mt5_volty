@@ -52,11 +52,18 @@ balance_profit_percent = 0.25
 ;# จำนวน orders ฝั่ง buy/sell สูงสุด
 buy_limit = 3
 sell_limit = 3
+;# ระยะห่างของ orders ใหม่ หน่วยเป็น pip
+order_space = 150
 ;# กำหนดวิธีการเปิด orders ใหม่ เป็น on/off, off=เปิดใหม่ทุกครั้ง, no=ปิด orders เก่า แล้วเปิดใหม่
 single_position = off
 
 ;# กำหนดจำนวน recovery orders ที่จะเปิดใหม่ให้ น้องพายุ หรือ ea recovery อื่นๆ
 rw_limit = 2
+;# ค่า magic number สำหรับ recovery orders สามารถมีได้มากกว่า 1, น้องพายุใช้ 6689
+rw_magic_numbers = 6689,6688
+;# เปิด/ปิด การใช้งาน recovery orders
+storm_helper_mode = on
+
 ;# ระดับสัญญาน stoch สำหรับเปิด recovery orders ใหม่
 sto_enter_long = 20
 sto_enter_short = 80
