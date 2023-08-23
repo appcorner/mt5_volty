@@ -56,11 +56,13 @@ sell_limit = 3
 order_space = 150
 ;# กำหนดวิธีการเปิด orders ใหม่ เป็น on/off, off=เปิดใหม่ทุกครั้ง, no=ปิด orders เก่า แล้วเปิดใหม่
 single_position = off
+;# จำนวน Lot ที่ใช้ในการเปิด order สุดท้ายเมื่อครบจำนวน orders ที่กำหนด
+last_limit_lot = 0.02
 
 ;# กำหนดจำนวน recovery orders ที่จะเปิดใหม่ให้ น้องพายุ หรือ ea recovery อื่นๆ
-rw_limit = 2
+rw_limit = 1
 ;# ค่า magic number สำหรับ recovery orders สามารถมีได้มากกว่า 1, น้องพายุใช้ 6689
-rw_magic_numbers = 6689,6688
+rw_magic_numbers = 6689
 ;# เปิด/ปิด การใช้งาน recovery orders
 storm_helper_mode = on
 

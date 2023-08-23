@@ -308,7 +308,8 @@ def close_by_profit(symbols_list):
         if len(symbol_positions) == 0:
             logger.info(f"close_by_profit:: no positions")
             return
-        target_positions = symbol_positions.loc[(symbol_positions["comment"].str.startswith(f'{bot_prefix}-', na=False)) & (symbol_positions["magic"] == magic_number)]
+        # target_positions = symbol_positions.loc[(symbol_positions["comment"].str.startswith(f'{bot_prefix}-', na=False)) & (symbol_positions["magic"] == magic_number)]
+        target_positions = symbol_positions.loc[(symbol_positions["comment"].str.startswith(f'{bot_prefix}-', na=False))]
         all_profit = sum(target_positions['profit'])
         logger.info(f"{base_symbol} close_by_profit :: all profit = {all_profit:.2f} :: tp_amount = {symbols_tpsl[base_symbol].tp_amount}")
         if symbols_tpsl[base_symbol].tp_amount > 0 and all_profit >= symbols_tpsl[base_symbol].tp_amount:
@@ -317,20 +318,30 @@ def close_by_profit(symbols_list):
             notify.Send_Text(f"Total Profit: {all_profit}")
 
 # Function to modify an open position
-def modify_position(base_symbol, position_id, new_sl, new_tp, magic_number=magic_number):
+def modify_position(base_symbol, position_id, new_sl, new_tp, magic_number=magic_number, step=0):
     symbol = broker_symbol(base_symbol)
+    logger.debug(f"{symbol} modify_position :: position_id = {position_id} : SL {new_sl} : TP {new_tp} : magic_number = {magic_number}")
     # Create the request
     request = {
         "action": mt5.TRADE_ACTION_SLTP,
         "symbol": symbol,
-        "sl": new_sl,
-        "tp": new_tp,
+        # "sl": new_sl,
+        # "tp": new_tp,
         "position": position_id,
-        "magic": magic_number,
+        # "magic": magic_number,
+        "type_time": mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_IOC,
     }
+    if new_sl > 0:
+        request["sl"] = new_sl
+    if new_tp > 0:
+        request["tp"] = new_tp
+    if magic_number != config.magic_number:
+        # request["magic"] = magic_number
+        request["comment"] = "{}#RW#{}-{}".format(bot_prefix,magic_number,step)
     # Send order to MT5
     result = mt5.order_send(request)
-    logger.debug(f"{symbol} modify_position :: retcode = {result.retcode}")
+    # logger.debug(f"{symbol} modify_position :: retcode = {result.retcode}")
     logger.debug(f"{symbol} modify_position :: result = {result}")
     if result[0] == 10009:
         logger.info(f"{symbol} modify_position :: order = {result.order}")
@@ -514,9 +525,8 @@ def cal_martingal_lot(symbol, is_double_lot=False):
                 cal_lot = round(config.lot * config.martingale_max, 2)
             else:
                 cal_lot = round(config.lot * (config.martingale_factor ** config.martingale_max), 2)
-    else:
-        if is_double_lot:
-            cal_lot = round(config.lot * 2.0, 2)
+    if is_double_lot:
+        cal_lot = round(cal_lot * 2.0, 2)
 
     return cal_lot
 
@@ -587,6 +597,22 @@ async def update_ohlcv(base_symbol, next_ticker):
     symbols_trade[base_symbol] = True
     # logger.debug(f'{base_symbol}::\n{stupid_volty_mt5.all_candles[base_symbol].tail(3)}')
 
+def is_my_position(base_symbol=None, position=None, suffix=""):
+    # if position["symbol"] == base_symbol and position["magic"] == magic_number:
+    if base_symbol is not None and position is not None and position["symbol"] == base_symbol and position["comment"].startswith(f"{bot_prefix}{suffix}"):
+        return True
+    return False
+
+def recovery_position(position, new_price, new_lot, rw_magic_number, direction=stupid_share.Direction.LONG, step=0):
+    base_symbol = position["symbol"]
+    identifier = position["identifier"]
+    sl = position["sl"]
+    tp = position["tp"]
+    if direction == stupid_share.Direction.LONG:
+        modify_position(base_symbol, identifier, sl, tp, rw_magic_number)
+    elif direction == stupid_share.Direction.SHORT:
+        modify_position(base_symbol, identifier, sl, tp, rw_magic_number)
+
 async def trade(base_symbol):
     try:
         if symbols_trade[base_symbol] == False:
@@ -620,7 +646,7 @@ async def trade(base_symbol):
         buy_space_pass = True
         buy_space_price = config.buy_space * mt5.symbol_info(symbol).point
         for index, position in all_positions.iterrows():
-            if position["symbol"] == base_symbol and position["magic"] == magic_number:
+            if is_my_position(base_symbol, position, "-"):
                 trade_count[base_symbol] += 1
                 if position["type"] == ORDER_TYPE[1]: # sell
                     sell_count[base_symbol] += 1
@@ -638,7 +664,7 @@ async def trade(base_symbol):
                     if config.buy_space > 0 and abs(position["price_open"] - price_buy) < buy_space_price:
                         # logger.debug(f"{base_symbol} trade :: buy_space = {config.buy_space} :: price space {abs(position['price_open'] - price_buy)} :: {buy_space_price}") 
                         buy_space_pass = False
-            elif position["symbol"] == base_symbol and position["comment"].startswith(f"{bot_prefix}#RW"):
+            elif is_my_position(base_symbol, position, "#RW"):
                 rw_count[base_symbol] += 1
 
         last_signal = all_signals[base_symbol] if base_symbol in all_signals.keys() else 0
@@ -669,7 +695,7 @@ async def trade(base_symbol):
             all_positions = positions_get(base_symbol)
             has_long_position = False
             for index, position in all_positions.iterrows():
-                if position["symbol"] == base_symbol and position["magic"] == magic_number:
+                if is_my_position(base_symbol, position):
                     if position["type"] == ORDER_TYPE[1]:
                         if config.is_single_position:
                             logger.debug(f"[{base_symbol}] close sell position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
@@ -693,7 +719,11 @@ async def trade(base_symbol):
                 buy_count[base_symbol] += 1
                 # calculate fibo
                 price_buy = mt5.symbol_info_tick(symbol).ask
-                cal_lot = cal_martingal_lot(base_symbol, buy_count[base_symbol] == config.sell_limit)
+                # cal_lot = cal_martingal_lot(base_symbol, buy_count[base_symbol] == config.sell_limit)
+                if buy_count[base_symbol] == config.sell_limit:
+                    cal_lot = config.last_limit_lot
+                else:
+                    cal_lot = config.lot
                 fibo_data = cal_tpsl(base_symbol, stupid_share.Direction.LONG, price_buy)
                 position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[base_symbol]["last_loss"])
                 if position_id > 0:
@@ -708,7 +738,7 @@ async def trade(base_symbol):
             all_positions = positions_get(base_symbol)
             has_short_position = False
             for index, position in all_positions.iterrows():
-                if position["symbol"] == base_symbol and position["magic"] == magic_number:
+                if is_my_position(base_symbol, position):
                     if position["type"] == ORDER_TYPE[0]:
                         if config.is_single_position:
                             logger.debug(f"[{base_symbol}] close buy position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
@@ -732,7 +762,11 @@ async def trade(base_symbol):
                 sell_count[base_symbol] += 1
                 # calculate fibo
                 price_sell = mt5.symbol_info_tick(symbol).bid
-                cal_lot = cal_martingal_lot(base_symbol, sell_count[base_symbol] == config.sell_limit)
+                # cal_lot = cal_martingal_lot(base_symbol, sell_count[base_symbol] == config.sell_limit)
+                if buy_count[base_symbol] == config.sell_limit:
+                    cal_lot = config.last_limit_lot
+                else:
+                    cal_lot = config.lot
                 fibo_data = cal_tpsl(base_symbol, stupid_share.Direction.SHORT, price_sell)
                 position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[base_symbol]["last_loss"])
                 if position_id > 0:
@@ -759,9 +793,11 @@ async def trade(base_symbol):
                 cal_lot = config.lot * rw_step
                 if min_sell_position is not None:
                     cal_lot = min_sell_position['volume'] * 2 * rw_step
-                    modify_position(base_symbol, min_sell_position['identifier'], 0, 0, rw_magic_number)
+                    # modify_position(base_symbol, min_sell_position['identifier'], 0, 0, rw_magic_number)
+                    recovery_position(min_sell_position, price_buy, cal_lot, rw_magic_number, stupid_share.Direction.LONG)
                 elif max_buy_position is not None:
-                    modify_position(base_symbol, max_buy_position['identifier'], 0, 0, rw_magic_number)
+                    # modify_position(base_symbol, max_buy_position['identifier'], 0, 0, rw_magic_number)
+                    recovery_position(max_buy_position, price_buy, cal_lot, rw_magic_number, stupid_share.Direction.LONG)
                 rw_position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=0, sl=0, magic_number=rw_magic_number, step=rw_step)
                 symbols_trade[base_symbol] = False
                 msg = f"rw ticker: {rw_position_id}"
@@ -774,9 +810,11 @@ async def trade(base_symbol):
                 cal_lot = config.lot * rw_step
                 if max_buy_position is not None:
                     cal_lot = max_buy_position['volume'] * 2 * rw_step
-                    modify_position(base_symbol, max_buy_position['identifier'], 0, 0, rw_magic_number)
+                    # modify_position(base_symbol, max_buy_position['identifier'], 0, 0, rw_magic_number)
+                    recovery_position(max_buy_position, price_sell, cal_lot, rw_magic_number, stupid_share.Direction.SHORT)
                 elif min_sell_position is not None:
-                    modify_position(base_symbol, min_sell_position['identifier'], 0, 0, rw_magic_number)
+                    # modify_position(base_symbol, min_sell_position['identifier'], 0, 0, rw_magic_number)
+                    recovery_position(min_sell_position, price_sell, cal_lot, rw_magic_number, stupid_share.Direction.SHORT)
                 rw_position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=0, sl=0, magic_number=rw_magic_number, step=rw_step)
                 symbols_trade[base_symbol] = False
                 msg = f"rw ticker: {rw_position_id}"
@@ -946,7 +984,7 @@ async def main():
                 # "trailing_stop_pips": 0,
             }
     for index, position in all_positions.iterrows():
-        if position["magic"] == magic_number and '-' in position["comment"]:
+        if is_my_position(position=position) and '-' in position["comment"]:
             step = int(position["comment"].split("-")[-1])
             all_stat[position['symbol']]["last_loss"] = step
 
@@ -992,7 +1030,7 @@ async def main():
             # prepare old position ids
             old_position_ids = []
             for index, position in all_positions.iterrows():
-                if position["symbol"] in symbols_list and position["magic"] == magic_number:
+                if position["symbol"] in symbols_list and is_my_position(position=position):
                     old_position_ids.append(position["ticket"])
             
             # get new positions

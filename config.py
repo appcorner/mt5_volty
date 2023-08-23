@@ -136,8 +136,9 @@ sell_space = get_int('setting', 'order_space', 100)
 is_single_position = get_str('setting', 'single_position', 'off') == 'on'
 
 rw_limit = get_int('setting', 'rw_limit', 1)
-rw_magic_numbers = get_list_int('setting', 'rw_magic_number', [6689])
+rw_magic_numbers = get_list_int('setting', 'rw_magic_numbers', [6689])
 is_storm_helper_mode = get_str('setting', 'storm_helper_mode', 'off') == 'on'
+last_limit_lot = get_float('setting', 'last_limit_lot', 0.01)
 
 # symbol = get_str('setting', 'symbol', 'XAUUSD')
 symbols = get_list('setting', 'symbols', ['XAUUSD'])
