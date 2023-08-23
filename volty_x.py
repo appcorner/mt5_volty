@@ -36,7 +36,7 @@ class TPLS(object):
 
 bot_name = 'Volty'
 bot_prefix = 'VT'
-bot_vesion = '1.4.4'
+bot_vesion = '1.4.5'
 
 bot_fullname = f'MT5 {bot_name} version {bot_vesion}'
 
@@ -599,8 +599,12 @@ async def update_ohlcv(base_symbol, next_ticker):
 
 def is_my_position(base_symbol=None, position=None, suffix=""):
     # if position["symbol"] == base_symbol and position["magic"] == magic_number:
-    if base_symbol is not None and position is not None and position["symbol"] == base_symbol and position["comment"].startswith(f"{bot_prefix}{suffix}"):
-        return True
+    if base_symbol is None:
+        if position is not None and position["comment"].startswith(f"{bot_prefix}{suffix}"):
+            return True
+    else:
+        if position is not None and position["symbol"] == base_symbol and position["comment"].startswith(f"{bot_prefix}{suffix}"):
+            return True
     return False
 
 def recovery_position(position, new_price, new_lot, rw_magic_number, direction=stupid_share.Direction.LONG, step=0):
@@ -695,7 +699,7 @@ async def trade(base_symbol):
             all_positions = positions_get(base_symbol)
             has_long_position = False
             for index, position in all_positions.iterrows():
-                if is_my_position(base_symbol, position):
+                if is_my_position(base_symbol, position, "-"):
                     if position["type"] == ORDER_TYPE[1]:
                         if config.is_single_position:
                             logger.debug(f"[{base_symbol}] close sell position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
@@ -738,7 +742,7 @@ async def trade(base_symbol):
             all_positions = positions_get(base_symbol)
             has_short_position = False
             for index, position in all_positions.iterrows():
-                if is_my_position(base_symbol, position):
+                if is_my_position(base_symbol, position, "-"):
                     if position["type"] == ORDER_TYPE[0]:
                         if config.is_single_position:
                             logger.debug(f"[{base_symbol}] close buy position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
@@ -984,7 +988,7 @@ async def main():
                 # "trailing_stop_pips": 0,
             }
     for index, position in all_positions.iterrows():
-        if is_my_position(position=position) and '-' in position["comment"]:
+        if is_my_position(position=position, suffix="-") and '-' in position["comment"]:
             step = int(position["comment"].split("-")[-1])
             all_stat[position['symbol']]["last_loss"] = step
 
@@ -1030,7 +1034,7 @@ async def main():
             # prepare old position ids
             old_position_ids = []
             for index, position in all_positions.iterrows():
-                if position["symbol"] in symbols_list and is_my_position(position=position):
+                if position["symbol"] in symbols_list and is_my_position(position=position, suffix="-"):
                     old_position_ids.append(position["ticket"])
             
             # get new positions
