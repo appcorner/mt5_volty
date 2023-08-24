@@ -139,11 +139,13 @@ rw_limit = get_int('setting', 'rw_limit', 1)
 rw_magic_numbers = get_list_int('setting', 'rw_magic_numbers', [6689])
 is_storm_helper_mode = get_str('setting', 'storm_helper_mode', 'off') == 'on'
 last_limit_lot = get_float('setting', 'last_limit_lot', 0.01)
+adaptive_lot = get_float('setting', 'adaptive_lot', 0.0)
 
 # symbol = get_str('setting', 'symbol', 'XAUUSD')
 symbols = get_list('setting', 'symbols', ['XAUUSD'])
 lot = get_float('setting', 'lot', 0.01)
 deviation = get_int('setting', 'deviation', 20)
+rebate_rate_usd = get_float('setting', 'rebate_rate_usd', 15.0)
 is_use_midprice = get_str('setting', 'use_midprice', 'off') == 'on'
 spread_factor = get_float('setting', 'spread_factor', 2.0)
 is_validate_spread = get_str('setting', 'validate_spread', 'off') == 'on'

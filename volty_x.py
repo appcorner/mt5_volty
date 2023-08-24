@@ -36,7 +36,7 @@ class TPLS(object):
 
 bot_name = 'Volty'
 bot_prefix = 'VT'
-bot_vesion = '1.4.5'
+bot_vesion = '1.4.6'
 
 bot_fullname = f'MT5 {bot_name} version {bot_vesion}'
 
@@ -118,6 +118,8 @@ rw_count = {}
 min_dd = 0.0
 
 init_balance = 0.0
+
+report_json_path = './datas/orders_report.json'
 
 def broker_symbol(symbol):
     if len(config.symbol_suffix) > 0:
@@ -435,15 +437,19 @@ def positions_check(positions, old_position_ids, account_info_dict):
             close_by = ''
             price_current = 0.0
             profit = 0.0
+            volumn = 0.0
             for idx, row in df.iterrows():
                 profit += (-1 if row['type'] == 0 else 1) * row['price_current'] * row['volume_initial'] / point
                 if 'tp' in row['comment']:
                     close_by = 'TP'
                     price_current = row['price_current']
+                    volumn = row['volume_initial']
                 elif 'sl' in row['comment']:
                     close_by = 'SL'
                     price_current = row['price_current']
+                    volumn = row['volume_initial']
                 # logger.debug(f"profit = {profit}")
+            all_stat[base_symbol]["lot"] += round(volumn, 2)
             all_stat[base_symbol]["summary_profit"] += round(profit , 2)
             if profit > 0:
                 all_stat[base_symbol]["win"] += 1
@@ -455,6 +461,8 @@ def positions_check(positions, old_position_ids, account_info_dict):
                 notify.Send_Text(f"{base_symbol}\nTrade {close_by}\n#{position_id}\nPrice = {price_current}\nProfit = {profit:.2f}", True)
                 notify.Send_Text(f"\nBalance = {account_info_dict['balance']}\nEquity = {account_info_dict['equity']}", True)
                 notify.Send_Text(f'\nWin:Loss = {all_stat[base_symbol]["win"]}:{all_stat[base_symbol]["loss"]}\nPNL = {all_stat[base_symbol]["summary_profit"]:0.2f}')
+                logger.debug(f"{base_symbol} all_stat: {all_stat[base_symbol]}")
+                save_to_json(report_json_path, all_stat)
 
 def positions_report(positions):
     global min_dd
@@ -470,10 +478,10 @@ def positions_report(positions):
         print(f"Minimun Profit : {min_dd:,.2f}")
     else:
         print("No Positions")
-    summary_columns = ["Symbol", "TF", "Win", "Loss", "Gale", "Profit"]
+    summary_columns = ["Symbol", "TF", "Win", "Loss", "Gale", "Lot", "Profit"]
     summary_rows = []
     for symbol in all_stat.keys():
-        summary_rows.append([symbol,symbols_tf[symbol],all_stat[symbol]["win"],all_stat[symbol]["loss"],all_stat[symbol]["last_loss"],'{:0.2f}'.format(all_stat[symbol]["summary_profit"])])
+        summary_rows.append([symbol,symbols_tf[symbol],all_stat[symbol]["win"],all_stat[symbol]["loss"],all_stat[symbol]["last_loss"],'{:0.2f}'.format(all_stat[symbol]["lot"]),'{:0.2f}'.format(all_stat[symbol]["summary_profit"])])
     summary_df = pd.DataFrame(summary_rows,columns=summary_columns)
     summary_df.sort_values(by=['Profit'], ignore_index=True, ascending=False, inplace=True)
     summary_df.index = summary_df.index + 1
@@ -705,6 +713,7 @@ async def trade(base_symbol):
                             logger.debug(f"[{base_symbol}] close sell position :: {position['symbol']}, {position['magic']}, {position['identifier']}")
                             all_signals[base_symbol] = 0
                             position_id = close_sell(base_symbol, position['identifier'], position['volume'], position['price_open'])
+                            all_stat[base_symbol]["lot"] += position["volume"]
                             all_stat[base_symbol]["summary_profit"] += position['profit']
                             if position['profit'] > 0:
                                 all_stat[base_symbol]["win"] += 1
@@ -724,16 +733,16 @@ async def trade(base_symbol):
                 # calculate fibo
                 price_buy = mt5.symbol_info_tick(symbol).ask
                 # cal_lot = cal_martingal_lot(base_symbol, buy_count[base_symbol] == config.sell_limit)
-                if buy_count[base_symbol] == config.sell_limit:
+                if buy_count[base_symbol] == config.sell_limit and config.adaptive_lot == 0.0:
                     cal_lot = config.last_limit_lot
                 else:
-                    cal_lot = config.lot
+                    cal_lot = config.lot + config.adaptive_lot * buy_count[base_symbol]
                 fibo_data = cal_tpsl(base_symbol, stupid_share.Direction.LONG, price_buy)
                 position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[base_symbol]["last_loss"])
                 if position_id > 0:
                     all_signals[base_symbol] = 1
                 symbols_trade[base_symbol] = False
-                msg = f"ticker: {position_id}"
+                msg = f"ticket: {position_id}"
                 print(msg)
             # elif buy_count[base_symbol] >= config.buy_limit:
             #     price_buy = mt5.symbol_info_tick(symbol).ask
@@ -767,16 +776,16 @@ async def trade(base_symbol):
                 # calculate fibo
                 price_sell = mt5.symbol_info_tick(symbol).bid
                 # cal_lot = cal_martingal_lot(base_symbol, sell_count[base_symbol] == config.sell_limit)
-                if buy_count[base_symbol] == config.sell_limit:
+                if buy_count[base_symbol] == config.sell_limit and config.adaptive_lot == 0.0:
                     cal_lot = config.last_limit_lot
                 else:
-                    cal_lot = config.lot
+                    cal_lot = config.lot + config.adaptive_lot * buy_count[base_symbol]
                 fibo_data = cal_tpsl(base_symbol, stupid_share.Direction.SHORT, price_sell)
                 position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[base_symbol]["last_loss"])
                 if position_id > 0:
                     all_signals[base_symbol] = -1
                 symbols_trade[base_symbol] = False
-                msg = f"ticker: {position_id}"
+                msg = f"ticket: {position_id}"
                 print(msg)
             # elif sell_count[base_symbol] >= config.sell_limit:
             #     price_sell = mt5.symbol_info_tick(symbol).bid
@@ -804,7 +813,7 @@ async def trade(base_symbol):
                     recovery_position(max_buy_position, price_buy, cal_lot, rw_magic_number, stupid_share.Direction.LONG)
                 rw_position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=0, sl=0, magic_number=rw_magic_number, step=rw_step)
                 symbols_trade[base_symbol] = False
-                msg = f"rw ticker: {rw_position_id}"
+                msg = f"rw ticket: {rw_position_id}"
                 print(msg)
             elif is_rwshort:
                 logger.debug(f"[{base_symbol}] sto rw signal {signal} :: @{price_sell} :: STOCHk={sto_k}, STOCHd={sto_d}, signal={signal}")
@@ -821,7 +830,7 @@ async def trade(base_symbol):
                     recovery_position(min_sell_position, price_sell, cal_lot, rw_magic_number, stupid_share.Direction.SHORT)
                 rw_position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=0, sl=0, magic_number=rw_magic_number, step=rw_step)
                 symbols_trade[base_symbol] = False
-                msg = f"rw ticker: {rw_position_id}"
+                msg = f"rw ticket: {rw_position_id}"
                 print(msg)
                 # if config.is_storm_helper_mode and min_profit < 0:
                 #     modify_position(base_symbol, min_profit, min_profit, magic_number)
@@ -880,7 +889,7 @@ def save_balance(symbols_list):
     pass
 
 async def main():
-    global init_balance
+    global all_stat, init_balance
     for idx, base_symbol in enumerate(config.symbols):
         symbol = broker_symbol(base_symbol)
         symbol_info = mt5.symbol_info(symbol)
@@ -976,6 +985,7 @@ async def main():
     call_inits = [init_symbol_ohlcv(base_symbol) for base_symbol in symbols_list]
     await asyncio.gather(*call_inits)
 
+    all_stat = load_json(report_json_path)
     # init all symbol stat
     all_positions = positions_getall(symbols_list)
     for base_symbol in symbols_list:
@@ -985,10 +995,11 @@ async def main():
                 "loss": 0,
                 "last_loss": 0,
                 "summary_profit": 0,
+                "lot": 0,
                 # "trailing_stop_pips": 0,
             }
     for index, position in all_positions.iterrows():
-        if is_my_position(position=position, suffix="-") and '-' in position["comment"]:
+        if is_my_position(position=position) and '-' in position["comment"]:
             step = int(position["comment"].split("-")[-1])
             all_stat[position['symbol']]["last_loss"] = step
 
@@ -1089,10 +1100,23 @@ async def waiting():
         count += 1
         count = count%len(status)
 
+def save_to_json(filename, json_data):
+    with open(filename,"w", encoding='utf8') as json_file:
+        json_string = json.dumps(json_data, indent=2, ensure_ascii=False).encode('utf8')
+        json_file.write(json_string.decode())
+def load_json(filename):
+    if os.path.exists(filename):
+        with open(filename,"r", encoding='utf8') as json_file:
+            return json.load(json_file)
+    return {}
+
 if __name__ == "__main__":
     try:
         pathlib.Path('./plots').mkdir(parents=True, exist_ok=True)
         pathlib.Path('./logs').mkdir(parents=True, exist_ok=True)
+        pathlib.Path('./datas').mkdir(parents=True, exist_ok=True)
+
+        report_json_path = './datas/orders_report.json'
 
         logger = logging.getLogger(__name__)
         logger.setLevel(config.LOG_LEVEL)
@@ -1139,6 +1163,7 @@ if __name__ == "__main__":
         loop.run_until_complete(main())
 
     except KeyboardInterrupt:
+        save_to_json(report_json_path, all_stat)
         print(CLS_LINE+'\rbye')
 
     except Exception as ex:
