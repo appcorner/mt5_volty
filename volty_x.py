@@ -36,7 +36,7 @@ class TPLS(object):
 
 bot_name = 'Volty'
 bot_prefix = 'VT'
-bot_vesion = '1.4.6'
+bot_vesion = '1.4.8'
 
 bot_fullname = f'MT5 {bot_name} version {bot_vesion}'
 
@@ -135,7 +135,7 @@ def symbol_only(symbol):
     else:
         return symbol
     
-def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number, step=0):
+def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number, step=0, tag=""):
     symbol = broker_symbol(base_symbol)
     point = mt5.symbol_info(symbol).point
     request = {
@@ -153,11 +153,9 @@ def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_nu
         request["sl"] = sl
     if 'sl' in request.keys():
         sl_pips = int(abs(price - request['sl']) / point + 0.5)
-        request["comment"] = "{}-{}-{}".format(bot_prefix,sl_pips,step)
+        request["comment"] = f"{bot_prefix}{tag}-{sl_pips}-{step}"
     else:
-        request["comment"] = "{}-{}".format(bot_prefix,step)
-    if magic_number != config.magic_number:
-        request["comment"] = "{}#RW-{}".format(bot_prefix,step)
+        request["comment"] = f"{bot_prefix}{tag}-{step}"
     if tp > 0:
         request["tp"] = tp
     logger.info(f"{base_symbol} trade_buy :: request = {request}")
@@ -177,7 +175,7 @@ def trade_buy(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_nu
             tp_txt = f"\nTP = {t_req.tp}"
         if t_req.sl > 0:
             sl_txt = f"\nSL = {t_req.sl}"
-        notify.Send_Text(f"{base_symbol}\nTrade Buy\nPrice = {t_req.price}\nLot = {t_req.volume}{tp_txt}{sl_txt}", True)
+        notify.Send_Text(f"{base_symbol}\nTrade Buy {step} {tag}\nPrice = {t_req.price}\nLot = {t_req.volume}{tp_txt}{sl_txt}", True)
         position_id_buy = result.order
     return position_id_buy
 
@@ -216,7 +214,7 @@ def close_buy(base_symbol, position_id, lot, price_open):
         position_id_close_buy = result.order
     return position_id_close_buy
 
-def trade_sell(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number, step=0):
+def trade_sell(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_number, step=0, tag=""):
     symbol = broker_symbol(base_symbol)
     point = mt5.symbol_info(symbol).point 
     request = {
@@ -234,11 +232,9 @@ def trade_sell(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_n
         request["sl"] = sl
     if 'sl' in request.keys():
         sl_pips = int(abs(price - request['sl']) / point + 0.5)
-        request["comment"] = "{}-{}-{}".format(bot_prefix,sl_pips,step)
+        request["comment"] = f"{bot_prefix}{tag}-{sl_pips}-{step}"
     else:
-        request["comment"] = "{}-{}".format(bot_prefix,step)
-    if magic_number != config.magic_number:
-        request["comment"] = "{}#RW-{}".format(bot_prefix,step)
+        request["comment"] = f"{bot_prefix}{tag}-{step}"
     if tp > 0:
         request["tp"] = tp
     logger.info(f"{base_symbol} trade_sell :: request = {request}")
@@ -258,7 +254,7 @@ def trade_sell(base_symbol, price, lot=lot, tp=0.0, sl=0.0, magic_number=magic_n
             tp_txt = f"\nTP = {t_req.tp}"
         if t_req.sl > 0:
             sl_txt = f"\nSL = {t_req.sl}"
-        notify.Send_Text(f"{base_symbol}\nTrade Sell\nPrice = {t_req.price}\nLot = {t_req.volume}{tp_txt}{sl_txt}", True)
+        notify.Send_Text(f"{base_symbol}\nTrade Sell {step} {tag}\nPrice = {t_req.price}\nLot = {t_req.volume}{tp_txt}{sl_txt}", True)
         position_id_sell = result.order
     return position_id_sell  
 
@@ -320,7 +316,7 @@ def close_by_profit(symbols_list):
             notify.Send_Text(f"Total Profit: {all_profit}")
 
 # Function to modify an open position
-def modify_position(base_symbol, position_id, new_sl, new_tp, magic_number=magic_number, step=0):
+def modify_position(base_symbol, position_id, new_sl, new_tp, magic_number=magic_number, step=0, tag=""):
     symbol = broker_symbol(base_symbol)
     logger.debug(f"{symbol} modify_position :: position_id = {position_id} : SL {new_sl} : TP {new_tp} : magic_number = {magic_number}")
     # Create the request
@@ -338,9 +334,9 @@ def modify_position(base_symbol, position_id, new_sl, new_tp, magic_number=magic
         request["sl"] = new_sl
     if new_tp > 0:
         request["tp"] = new_tp
-    if magic_number != config.magic_number:
-        # request["magic"] = magic_number
-        request["comment"] = "{}#RW#{}-{}".format(bot_prefix,magic_number,step)
+    # if magic_number != config.magic_number:
+    #     request["magic"] = magic_number
+    #     request["comment"] = f"{bot_prefix}{tag}#{magic_number}-{step}"
     # Send order to MT5
     result = mt5.order_send(request)
     # logger.debug(f"{symbol} modify_position :: retcode = {result.retcode}")
@@ -435,6 +431,7 @@ def positions_check(positions, old_position_ids, account_info_dict):
             point = mt5.symbol_info(symbol).point
             logger.debug(f"positions_check {base_symbol}\n{df[['position_id', 'type', 'type_filling', 'volume_initial', 'price_open', 'price_current', 'comment']]}")
             close_by = ''
+            order_type = ''
             price_current = 0.0
             profit = 0.0
             volumn = 0.0
@@ -442,12 +439,19 @@ def positions_check(positions, old_position_ids, account_info_dict):
                 profit += (-1 if row['type'] == 0 else 1) * row['price_current'] * row['volume_initial'] / point
                 if 'tp' in row['comment']:
                     close_by = 'TP'
-                    price_current = row['price_current']
+                    # price_current = row['price_current']
                     volumn = row['volume_initial']
                 elif 'sl' in row['comment']:
                     close_by = 'SL'
-                    price_current = row['price_current']
+                    # price_current = row['price_current']
                     volumn = row['volume_initial']
+                elif row['comment'].startswith(bot_prefix):
+                    order_type = 'Buy' if row['type'] == 0 else 'Sell'
+                    close_by = bot_prefix
+                    # price_current = row['price_current']
+                    volumn = row['volume_initial']
+                else:
+                    logger.debug(f"{base_symbol} close_by :: comment = {row['comment']}")
                 # logger.debug(f"profit = {profit}")
             all_stat[base_symbol]["lot"] += round(volumn, 2)
             all_stat[base_symbol]["summary_profit"] += round(profit , 2)
@@ -458,10 +462,14 @@ def positions_check(positions, old_position_ids, account_info_dict):
                 all_stat[base_symbol]["loss"] += 1
                 all_stat[base_symbol]["last_loss"] += 1
             if close_by != '':
-                notify.Send_Text(f"{base_symbol}\nTrade {close_by}\n#{position_id}\nPrice = {price_current}\nProfit = {profit:.2f}", True)
+                notify.Send_Text(f"{base_symbol}\n{close_by} Close {order_type}\n#{position_id}\nProfit = {profit:.2f}", True)
                 notify.Send_Text(f"\nBalance = {account_info_dict['balance']}\nEquity = {account_info_dict['equity']}", True)
-                notify.Send_Text(f'\nWin:Loss = {all_stat[base_symbol]["win"]}:{all_stat[base_symbol]["loss"]}\nPNL = {all_stat[base_symbol]["summary_profit"]:0.2f}')
+                notify.Send_Text(f'\nWin:Loss = {all_stat[base_symbol]["win"]}:{all_stat[base_symbol]["loss"]}\nPNL = {all_stat[base_symbol]["summary_profit"]:0.2f}', True)
+                notify.Send_Text(f'Total Lot = {all_stat[base_symbol]["lot"]:0.2f}\nRebate = {config.rebate_rate_usd*all_stat[base_symbol]["lot"]:0.4f}')
                 logger.debug(f"{base_symbol} all_stat: {all_stat[base_symbol]}")
+
+                all_stat["init_balance"] = init_balance
+                all_stat["min_dd"] = min_dd
                 save_to_json(report_json_path, all_stat)
 
 def positions_report(positions):
@@ -480,8 +488,9 @@ def positions_report(positions):
         print("No Positions")
     summary_columns = ["Symbol", "TF", "Win", "Loss", "Gale", "Lot", "Profit"]
     summary_rows = []
-    for symbol in all_stat.keys():
-        summary_rows.append([symbol,symbols_tf[symbol],all_stat[symbol]["win"],all_stat[symbol]["loss"],all_stat[symbol]["last_loss"],'{:0.2f}'.format(all_stat[symbol]["lot"]),'{:0.2f}'.format(all_stat[symbol]["summary_profit"])])
+    for base_symbol in symbols_list:
+        if base_symbol in all_stat.keys():
+            summary_rows.append([base_symbol,symbols_tf[base_symbol],all_stat[base_symbol]["win"],all_stat[base_symbol]["loss"],all_stat[base_symbol]["last_loss"],'{:0.2f}'.format(all_stat[base_symbol]["lot"]),'{:0.2f}'.format(all_stat[base_symbol]["summary_profit"])])
     summary_df = pd.DataFrame(summary_rows,columns=summary_columns)
     summary_df.sort_values(by=['Profit'], ignore_index=True, ascending=False, inplace=True)
     summary_df.index = summary_df.index + 1
@@ -732,13 +741,12 @@ async def trade(base_symbol):
                 buy_count[base_symbol] += 1
                 # calculate fibo
                 price_buy = mt5.symbol_info_tick(symbol).ask
-                # cal_lot = cal_martingal_lot(base_symbol, buy_count[base_symbol] == config.sell_limit)
                 if buy_count[base_symbol] == config.sell_limit and config.adaptive_lot == 0.0:
                     cal_lot = config.last_limit_lot
                 else:
-                    cal_lot = config.lot + config.adaptive_lot * buy_count[base_symbol]
+                    cal_lot = config.lot + config.adaptive_lot * (buy_count[base_symbol]-1)
                 fibo_data = cal_tpsl(base_symbol, stupid_share.Direction.LONG, price_buy)
-                position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[base_symbol]["last_loss"])
+                position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=buy_count[base_symbol])
                 if position_id > 0:
                     all_signals[base_symbol] = 1
                 symbols_trade[base_symbol] = False
@@ -775,13 +783,12 @@ async def trade(base_symbol):
                 sell_count[base_symbol] += 1
                 # calculate fibo
                 price_sell = mt5.symbol_info_tick(symbol).bid
-                # cal_lot = cal_martingal_lot(base_symbol, sell_count[base_symbol] == config.sell_limit)
-                if buy_count[base_symbol] == config.sell_limit and config.adaptive_lot == 0.0:
+                if sell_count[base_symbol] == config.sell_limit and config.adaptive_lot == 0.0:
                     cal_lot = config.last_limit_lot
                 else:
-                    cal_lot = config.lot + config.adaptive_lot * buy_count[base_symbol]
+                    cal_lot = config.lot + config.adaptive_lot * (sell_count[base_symbol]-1)
                 fibo_data = cal_tpsl(base_symbol, stupid_share.Direction.SHORT, price_sell)
-                position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=all_stat[base_symbol]["last_loss"])
+                position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=fibo_data['tp'], sl=fibo_data['sl'], step=sell_count[base_symbol])
                 if position_id > 0:
                     all_signals[base_symbol] = -1
                 symbols_trade[base_symbol] = False
@@ -797,21 +804,23 @@ async def trade(base_symbol):
             rw_magic_number = 0
             if len(config.rw_magic_numbers) >= rw_count[base_symbol] + 1:
                 rw_magic_number = config.rw_magic_numbers[rw_count[base_symbol]]
+            elif len(config.rw_magic_numbers) > 1:
+                rw_magic_number = config.rw_magic_numbers[0]
 
             if is_rwlong:
                 logger.debug(f"[{base_symbol}] sto rw signal {signal} :: @{price_sell} :: STOCHk={sto_k}, STOCHd={sto_d}, signal={signal}")
                 price_buy = mt5.symbol_info_tick(symbol).ask
                 rw_count[base_symbol] += 1
                 rw_step = 1 + int((config.sto_enter_long - sto_k) // config.sto_step_factor)
-                cal_lot = config.lot * rw_step
-                if min_sell_position is not None:
-                    cal_lot = min_sell_position['volume'] * 2 * rw_step
-                    # modify_position(base_symbol, min_sell_position['identifier'], 0, 0, rw_magic_number)
-                    recovery_position(min_sell_position, price_buy, cal_lot, rw_magic_number, stupid_share.Direction.LONG)
-                elif max_buy_position is not None:
-                    # modify_position(base_symbol, max_buy_position['identifier'], 0, 0, rw_magic_number)
-                    recovery_position(max_buy_position, price_buy, cal_lot, rw_magic_number, stupid_share.Direction.LONG)
-                rw_position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=0, sl=0, magic_number=rw_magic_number, step=rw_step)
+                cal_lot = (config.lot + config.adaptive_lot * (buy_count[base_symbol]-1)) * rw_step 
+                # if min_sell_position is not None:
+                #     cal_lot = min_sell_position['volume'] * 2 * rw_step
+                #     # modify_position(base_symbol, min_sell_position['identifier'], 0, 0, rw_magic_number)
+                #     recovery_position(min_sell_position, price_buy, cal_lot, rw_magic_number, stupid_share.Direction.LONG)
+                # elif max_buy_position is not None:
+                #     # modify_position(base_symbol, max_buy_position['identifier'], 0, 0, rw_magic_number)
+                #     recovery_position(max_buy_position, price_buy, cal_lot, rw_magic_number, stupid_share.Direction.LONG)
+                rw_position_id = trade_buy(base_symbol, price_buy, lot=cal_lot, tp=0, sl=0, magic_number=rw_magic_number, step=rw_count[base_symbol], tag="#RW")
                 symbols_trade[base_symbol] = False
                 msg = f"rw ticket: {rw_position_id}"
                 print(msg)
@@ -820,15 +829,15 @@ async def trade(base_symbol):
                 price_sell = mt5.symbol_info_tick(symbol).bid
                 rw_count[base_symbol] += 1
                 rw_step = 1 + int((sto_k - config.sto_enter_short) // config.sto_step_factor)
-                cal_lot = config.lot * rw_step
-                if max_buy_position is not None:
-                    cal_lot = max_buy_position['volume'] * 2 * rw_step
-                    # modify_position(base_symbol, max_buy_position['identifier'], 0, 0, rw_magic_number)
-                    recovery_position(max_buy_position, price_sell, cal_lot, rw_magic_number, stupid_share.Direction.SHORT)
-                elif min_sell_position is not None:
-                    # modify_position(base_symbol, min_sell_position['identifier'], 0, 0, rw_magic_number)
-                    recovery_position(min_sell_position, price_sell, cal_lot, rw_magic_number, stupid_share.Direction.SHORT)
-                rw_position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=0, sl=0, magic_number=rw_magic_number, step=rw_step)
+                cal_lot = (config.lot + config.adaptive_lot * (sell_count[base_symbol]-1)) * rw_step 
+                # if max_buy_position is not None:
+                #     cal_lot = max_buy_position['volume'] * 2 * rw_step
+                #     # modify_position(base_symbol, max_buy_position['identifier'], 0, 0, rw_magic_number)
+                #     recovery_position(max_buy_position, price_sell, cal_lot, rw_magic_number, stupid_share.Direction.SHORT)
+                # elif min_sell_position is not None:
+                #     # modify_position(base_symbol, min_sell_position['identifier'], 0, 0, rw_magic_number)
+                #     recovery_position(min_sell_position, price_sell, cal_lot, rw_magic_number, stupid_share.Direction.SHORT)
+                rw_position_id = trade_sell(base_symbol, price_sell, lot=cal_lot, tp=0, sl=0, magic_number=rw_magic_number, step=rw_count[base_symbol], tag="#RW")
                 symbols_trade[base_symbol] = False
                 msg = f"rw ticket: {rw_position_id}"
                 print(msg)
@@ -889,7 +898,7 @@ def save_balance(symbols_list):
     pass
 
 async def main():
-    global all_stat, init_balance
+    global all_stat, min_dd, init_balance
     for idx, base_symbol in enumerate(config.symbols):
         symbol = broker_symbol(base_symbol)
         symbol_info = mt5.symbol_info(symbol)
@@ -985,7 +994,21 @@ async def main():
     call_inits = [init_symbol_ohlcv(base_symbol) for base_symbol in symbols_list]
     await asyncio.gather(*call_inits)
 
+    init_balance = (mt5.account_info().balance + mt5.account_info().equity) / 2.0
+    if config.init_balance > 0:
+        init_balance = config.init_balance
+
     all_stat = load_json(report_json_path)
+    if "init_balance" not in all_stat.keys():
+        all_stat["init_balance"] = config.init_balance
+    else:
+        init_balance = all_stat["init_balance"]
+
+    if "min_dd" not in all_stat.keys():
+        all_stat["min_dd"] = 0.0
+    else:
+        min_dd = all_stat["min_dd"]
+
     # init all symbol stat
     all_positions = positions_getall(symbols_list)
     for base_symbol in symbols_list:
@@ -999,7 +1022,7 @@ async def main():
                 # "trailing_stop_pips": 0,
             }
     for index, position in all_positions.iterrows():
-        if is_my_position(position=position) and '-' in position["comment"]:
+        if is_my_position(position=position, suffix="-") and '-' in position["comment"]:
             step = int(position["comment"].split("-")[-1])
             all_stat[position['symbol']]["last_loss"] = step
 
@@ -1009,10 +1032,6 @@ async def main():
 
     for base_symbol in symbols_list:
         symbols_next_tf_ticker[base_symbol] = next_tf_ticker + TIMEFRAME_SECONDS[symbols_tf[base_symbol]]
-
-    init_balance = (mt5.account_info().balance + mt5.account_info().equity) / 2.0
-    if config.init_balance > 0:
-        init_balance = config.init_balance
 
     # next_tf_ticker += time_wait
 
@@ -1035,7 +1054,8 @@ async def main():
             next_update += time_update
 
             print(CLS_SCREEN+f"{bot_fullname}\nBot start process {local_time}")
-            print(f"Lot = {config.lot}, Buy/Sell Limit = {config.buy_limit}x{config.sell_limit}, ATR = {config.atr_length}:{config.atr_multiple}, Martingale = {'on' if config.is_martingale else 'off'}")
+            # print(f"Lot = {config.lot}, Buy/Sell Limit = {config.buy_limit}x{config.sell_limit}, ATR = {config.atr_length}:{config.atr_multiple}, Martingale = {'on' if config.is_martingale else 'off'}")
+            print(f"Lot+Adaptive = {config.lot}+{config.adaptive_lot}, Buy:Sell:Recovery = {config.buy_limit}:{config.sell_limit}:{config.rw_limit}, ATR = {config.atr_length}:{config.atr_multiple}")
             balance_profit = round(init_balance * config.balance_profit_percent / 100.0, 2)         
             print(f"Init Balance = {init_balance}, Target = {init_balance+balance_profit}, Profit ({config.balance_profit_percent:.2f}%) = {balance_profit}")
             close_by_profit(symbols_list)
@@ -1045,7 +1065,7 @@ async def main():
             # prepare old position ids
             old_position_ids = []
             for index, position in all_positions.iterrows():
-                if position["symbol"] in symbols_list and is_my_position(position=position, suffix="-"):
+                if position["symbol"] in symbols_list and is_my_position(position=position):
                     old_position_ids.append(position["ticket"])
             
             # get new positions
