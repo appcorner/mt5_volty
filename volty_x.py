@@ -36,7 +36,7 @@ class TPLS(object):
 
 bot_name = 'Volty'
 bot_prefix = 'VT'
-bot_vesion = '1.4.8'
+bot_vesion = '1.4.9'
 
 bot_fullname = f'MT5 {bot_name} version {bot_vesion}'
 
@@ -465,7 +465,10 @@ def positions_check(positions, old_position_ids, account_info_dict):
                 notify.Send_Text(f"{base_symbol}\n{close_by} Close {order_type}\n#{position_id}\nProfit = {profit:.2f}", True)
                 notify.Send_Text(f"\nBalance = {account_info_dict['balance']}\nEquity = {account_info_dict['equity']}", True)
                 notify.Send_Text(f'\nWin:Loss = {all_stat[base_symbol]["win"]}:{all_stat[base_symbol]["loss"]}\nPNL = {all_stat[base_symbol]["summary_profit"]:0.2f}', True)
-                notify.Send_Text(f'Total Lot = {all_stat[base_symbol]["lot"]:0.2f}\nRebate = {config.rebate_rate_usd*all_stat[base_symbol]["lot"]:0.4f}')
+                if config.rebate_rate_usd > 0:
+                    notify.Send_Text(f'Total Lot = {all_stat[base_symbol]["lot"]:0.2f}\nRebate = {config.rebate_rate_usd*all_stat[base_symbol]["lot"]:0.4f}')
+                else:
+                    notify.Send_Text(f'Total Lot = {all_stat[base_symbol]["lot"]:0.2f}')
                 logger.debug(f"{base_symbol} all_stat: {all_stat[base_symbol]}")
 
                 all_stat["init_balance"] = init_balance
@@ -804,7 +807,7 @@ async def trade(base_symbol):
             rw_magic_number = 0
             if len(config.rw_magic_numbers) >= rw_count[base_symbol] + 1:
                 rw_magic_number = config.rw_magic_numbers[rw_count[base_symbol]]
-            elif len(config.rw_magic_numbers) > 1:
+            elif len(config.rw_magic_numbers) >= 1:
                 rw_magic_number = config.rw_magic_numbers[0]
 
             if is_rwlong:
@@ -886,7 +889,6 @@ def save_balance(symbols_list):
         equity = account_info_dict['equity']
         balance_profit = init_balance * config.balance_profit_percent / 100.0
         if balance_profit > 0 and equity >= (init_balance + balance_profit) and balance > equity:
-            init_balance = init_balance + balance_profit
             for base_symbol in symbols_list:
                 symbol_positions = positions_get(base_symbol)
                 if len(symbol_positions) == 0:
@@ -894,8 +896,11 @@ def save_balance(symbols_list):
                     return            
                 for index, position in symbol_positions.iterrows():
                     close_position(position)
-                notify.Send_Text(f"Old Balance : {init_balance-balance_profit}\nProfit : {balance_profit}\nNew Balance : {init_balance}")
-    pass
+            old_balance = init_balance
+            init_balance = mt5.account_info().balance
+            cur_profit = init_balance - old_balance
+            logger.info(f"save_balance:: old_balance={old_balance}, cur_profit={cur_profit}, new_balance={init_balance}")
+            notify.Send_Text(f"Old Balance : {old_balance:.2f}\nProfit : {cur_profit:.2f}\nNew Balance : {init_balance:.2f}")
 
 async def main():
     global all_stat, min_dd, init_balance
@@ -994,15 +999,17 @@ async def main():
     call_inits = [init_symbol_ohlcv(base_symbol) for base_symbol in symbols_list]
     await asyncio.gather(*call_inits)
 
-    init_balance = (mt5.account_info().balance + mt5.account_info().equity) / 2.0
     if config.init_balance > 0:
         init_balance = config.init_balance
 
     all_stat = load_json(report_json_path)
     if "init_balance" not in all_stat.keys():
-        all_stat["init_balance"] = config.init_balance
+        all_stat["init_balance"] = init_balance
     else:
         init_balance = all_stat["init_balance"]
+
+    if init_balance < mt5.account_info().equity:
+        init_balance = mt5.account_info().equity
 
     if "min_dd" not in all_stat.keys():
         all_stat["min_dd"] = 0.0

@@ -145,7 +145,7 @@ adaptive_lot = get_float('setting', 'adaptive_lot', 0.0)
 symbols = get_list('setting', 'symbols', ['XAUUSD'])
 lot = get_float('setting', 'lot', 0.01)
 deviation = get_int('setting', 'deviation', 20)
-rebate_rate_usd = get_float('setting', 'rebate_rate_usd', 15.0)
+rebate_rate_usd = get_float('setting', 'rebate_rate_usd', 0.0)
 is_use_midprice = get_str('setting', 'use_midprice', 'off') == 'on'
 spread_factor = get_float('setting', 'spread_factor', 2.0)
 is_validate_spread = get_str('setting', 'validate_spread', 'off') == 'on'
