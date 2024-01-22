@@ -85,13 +85,13 @@ TIMEFRAME_SECONDS = {
     '1d': 60*60*24,
 }
 UB_TIMER_SECONDS = [
-    TIMEFRAME_SECONDS[config.timeframe[0]],
+    TIMEFRAME_SECONDS[tf],
     10,
     15,
     20,
     30,
     60,
-    int(TIMEFRAME_SECONDS[config.timeframe[0]]/2)
+    int(TIMEFRAME_SECONDS[tf]/2)
 ]
 
 SHOW_COLUMNS = ['symbol', 'identifier', 'type', 'volume', 'price_open', 'sl', 'tp', 'price_current', 'profit', 'comment', 'magic']
@@ -879,7 +879,7 @@ async def init_symbol_ohlcv(base_symbol):
     await stupid_volty_mt5.fetch_ohlcv(trade_mt5, base_symbol, tf, limit=stupid_volty_mt5.CANDLE_LIMIT, symbol_suffix=config.symbol_suffix)
     await stupid_volty_mt5.chart(base_symbol, tf, showMACDRSI=True)
 
-    logger.debug(f'{base_symbol}::\n{stupid_volty_mt5.all_candles[base_symbol].tail(3)}')
+    logger.debug(f'{base_symbol}::\n{stupid_volty_mt5.get_candle(base_symbol).tail(3)}')
 
 def save_balance(symbols_list):
     global init_balance
@@ -1064,7 +1064,7 @@ async def main():
             # print(f"Lot = {config.lot}, Buy/Sell Limit = {config.buy_limit}x{config.sell_limit}, ATR = {config.atr_length}:{config.atr_multiple}, Martingale = {'on' if config.is_martingale else 'off'}")
             print(f"Lot+Adaptive = {config.lot}+{config.adaptive_lot}, Buy:Sell:Recovery = {config.buy_limit}:{config.sell_limit}:{config.rw_limit}, ATR = {config.atr_length}:{config.atr_multiple}")
             balance_profit = round(init_balance * config.balance_profit_percent / 100.0, 2)         
-            print(f"Init Balance = {init_balance}, Target = {init_balance+balance_profit}, Profit ({config.balance_profit_percent:.2f}%) = {balance_profit}")
+            print(f"Init Balance = {init_balance:.2f}, Target = {init_balance+balance_profit:.2f}, Profit ({config.balance_profit_percent:.2f}%) = {balance_profit:.2f}")
             close_by_profit(symbols_list)
 
             save_balance(symbols_list)
