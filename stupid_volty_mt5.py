@@ -97,7 +97,33 @@ def set_config(config):
         if key in config.keys():
             indicator_config[key] = config[key]
 
-def set_indicator(symbol, bars, config=indicator_config):
+def has_candle(symbol, tf='default'):
+    if symbol not in all_candles.keys():
+        return False
+    if tf=='default' and len(all_candles[symbol].keys()) > 0:
+        return True
+    if tf not in all_candles[symbol].keys():
+        return False
+    return True
+
+def get_candle(symbol, tf='default'):
+    if symbol not in all_candles.keys():
+        return None
+    if tf=='default' and len(all_candles[symbol].keys()) > 0:
+        tf_keys = list(all_candles[symbol].keys())
+        # logger.debug(f"get_candle {symbol} {tf_keys}")
+        return all_candles[symbol][tf_keys[0]]
+    if tf not in all_candles[symbol].keys():
+        return None
+    return all_candles[symbol][tf]
+
+def set_candle(symbol, candle_data, tf='default'):
+    global all_candles
+    if symbol not in all_candles.keys():
+        all_candles[symbol] = {}
+    all_candles[symbol][tf] = candle_data
+
+def set_indicator(symbol, bars, config=indicator_config, tf='default'):
     if config['is_tdv_ohlcv']:
         df = bars.copy()
     else:
@@ -112,8 +138,8 @@ def set_indicator(symbol, bars, config=indicator_config):
         df.rename({'tick_volume': 'volume'}, axis=1, inplace=True)
 
     # เอาข้อมูลใหม่ไปต่อท้าย ข้อมูลที่มีอยู่
-    if symbol in all_candles.keys() and len(df) < CANDLE_LIMIT:
-        df = pd.concat([all_candles[symbol], df], ignore_index=False)
+    if has_candle(symbol, tf) and len(df) < CANDLE_LIMIT:
+        df = pd.concat([get_candle(symbol,tf), df], ignore_index=False)
 
         # เอาแท่งซ้ำออก เหลืออันใหม่สุด
         df = df[~df.index.duplicated(keep='last')].tail(CANDLE_LIMIT)
@@ -200,16 +226,15 @@ limit: จำนวนแท่งที่ต้องการ, ใส่ 0 �
 timestamp: ระบุเวลาปัจจุบัน ถ้า limit=0
 """
 async def fetch_ohlcv(exchange, symbol, timeframe, limit=CANDLE_LIMIT, timestamp=0, config=indicator_config, symbol_suffix=''):
-    global all_candles
     if not exchange:
         print("No MT5 Connect")
         return
     try:
         # กำหนดการอ่านแท่งเทียนแบบไม่ระบุจำนวน
-        if limit == 0 and symbol in all_candles.keys():
+        if limit == 0 and has_candle(symbol, timeframe):
             timeframe_secs = TIMEFRAME_SECONDS[timeframe]
             ts_adjust_secs = TZ_ADJUST*60*60
-            last_candle_time = int(pd.Timestamp(all_candles[symbol].index[-1]).timestamp()) - ts_adjust_secs
+            last_candle_time = int(pd.Timestamp(get_candle(symbol,timeframe).index[-1]).timestamp()) - ts_adjust_secs
             # ให้อ่านแท่งสำรองเพิ่มอีก 2 แท่ง
             cal_limit = round(1.5+(timestamp-last_candle_time)/timeframe_secs)
             limit = cal_limit if cal_limit < CANDLE_LIMIT else CANDLE_LIMIT
@@ -221,46 +246,47 @@ async def fetch_ohlcv(exchange, symbol, timeframe, limit=CANDLE_LIMIT, timestamp
             ohlcv_bars  = mt5.copy_rates_from_pos(f"{symbol}{symbol_suffix}", TIMEFRAME_MT5[timeframe], 0, limit)
         if ohlcv_bars is not None and len(ohlcv_bars):
             logger.info(f"{symbol} fetch_ohlcv, limit:{limit}, len:{len(ohlcv_bars)}")
-            all_candles[symbol] = set_indicator(symbol, ohlcv_bars, config=config)
+            set_candle(symbol, set_indicator(symbol, ohlcv_bars, config=config), timeframe)
     except Exception as ex:
         print(type(ex).__name__, symbol, str(ex))
         logger.exception('fetch_ohlcv')
-        if limit == 0 and symbol in all_candles.keys():
-            print('----->', timestamp, last_candle_time, timestamp-last_candle_time, round(1.5+(timestamp-last_candle_time)/timeframe_secs))
+        if limit == 0 and has_candle(symbol, timeframe):
+            print(symbol, timeframe, '----->', timestamp, last_candle_time, timestamp-last_candle_time, round(1.5+(timestamp-last_candle_time)/timeframe_secs))
         # if '"code":-1130' in str(ex):
         #     watch_list.remove(symbol)
         #     print(f'{symbol} is removed from watch_list')
 
-def get_signal(symbol, idx, config=indicator_config):
-    df = all_candles[symbol]
+def get_signal(symbol, idx, config=indicator_config, tf='default'):
+    df = get_candle(symbol,tf)
+    # logger.debug(f"get_signal {symbol} {idx} {len(df)}")
     is_long = False
     is_short = False
 
-    # atrs_value = df['atrs'][idx-1]
-    # last_close = df['close'][idx-1]
+    # atrs_value = df['atrs'].iloc[idx-1]
+    # last_close = df['close'].iloc[idx-1]
     # buy_signal = last_close + atrs_value
     # sell_signal = last_close - atrs_value
-    buy_signal = df['buy_signal'][idx]
-    sell_signal = df['sell_signal'][idx]
+    buy_signal = df['buy_signal'].iloc[idx]
+    sell_signal = df['sell_signal'].iloc[idx]
 
-    if df['high'][idx] > buy_signal:
+    if df['high'].iloc[idx] > buy_signal:
         is_long = True
-    elif df['low'][idx] < sell_signal:
+    elif df['low'].iloc[idx] < sell_signal:
         is_short = True
 
     return is_long, is_short, buy_signal, sell_signal
 
-def get_fongbeer_signal(symbol, idx, sto_enter_long, sto_enter_short, config=indicator_config):
-    df = all_candles[symbol]
+def get_fongbeer_signal(symbol, idx, sto_enter_long, sto_enter_short, config=indicator_config, tf='default'):
+    df = get_candle(symbol,tf)
 
     prev_idx = idx - 1
     curr_idx = idx
-    (prev_k, sto_k) = (df['STOCHk'][prev_idx], df['STOCHk'][curr_idx])
-    (prev_d, sto_d) = (df['STOCHd'][prev_idx], df['STOCHd'][curr_idx])
-    close = df['close'][curr_idx]
-    open = df['open'][curr_idx]
-    sma_lo = df['SMAlo'][curr_idx]
-    sma_hi = df['SMAhi'][curr_idx]
+    (prev_k, sto_k) = (df['STOCHk'].iloc[prev_idx], df['STOCHk'].iloc[curr_idx])
+    (prev_d, sto_d) = (df['STOCHd'].iloc[prev_idx], df['STOCHd'].iloc[curr_idx])
+    close = df['close'].iloc[curr_idx]
+    open = df['open'].iloc[curr_idx]
+    sma_lo = df['SMAlo'].iloc[curr_idx]
+    sma_hi = df['SMAhi'].iloc[curr_idx]
     crossover = prev_k < prev_d and sto_k > sto_d
     crossunder = prev_k > prev_d and sto_k < sto_d
 
@@ -276,11 +302,11 @@ def get_fongbeer_signal(symbol, idx, sto_enter_long, sto_enter_short, config=ind
 
     return is_long, is_short, signal, sto_k, sto_d
 
-async def chart(symbol, timeframe, config=indicator_config, showMACDRSI=False, fiboData=None):
+async def chart(symbol, tf_label, config=indicator_config, showMACDRSI=False, fiboData=None, tf='default'):
     filename = f"./plots/order_{str(symbol).lower()}.png"
     try:
         print(f"{symbol} create line_chart")
-        df = all_candles[symbol]
+        df = get_candle(symbol, tf)
         data = df.tail(CANDLE_PLOT)
 
         showFibo = fiboData != None
@@ -301,11 +327,11 @@ async def chart(symbol, timeframe, config=indicator_config, showMACDRSI=False, f
             if is_long and last_signal != 1:
                 has_long = True
                 last_signal = 1
-                long_markers[i] = data['low'][i] - gap
+                long_markers[i] = data['low'].iloc[i] - gap
             elif is_short and last_signal != -1:
                 has_short = True
                 last_signal = -1
-                short_markers[i] = data['high'][i] + gap
+                short_markers[i] = data['high'].iloc[i] + gap
 
         added_plots = [
             mpf.make_addplot(data['buy_signal'],color='green',width=.5),
@@ -384,7 +410,7 @@ async def chart(symbol, timeframe, config=indicator_config, showMACDRSI=False, f
         myrcparams = {'axes.labelsize':10,'xtick.labelsize':8,'ytick.labelsize':8}
         mystyle = mpf.make_mpf_style(base_mpf_style='charles',rc=myrcparams)
 
-        title = f'{symbol} :: Volty :: ({timeframe} @ {data.index[-1]}){fibo_title}'
+        title = f'{symbol} :: Volty :: ({tf_label} @ {data.index[-1]}){fibo_title}'
         print(title)
 
         fig, axlist = mpf.plot(
